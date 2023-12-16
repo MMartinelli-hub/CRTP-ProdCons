@@ -30,6 +30,7 @@ volatile sig_atomic_t terminate = 0;
 
 // Mutex and Semaphores
 pthread_mutex_t mutex;
+pthread_mutex_t producerRateMutex = PTHREAD_MUTEX_INITIALIZER;
 sem_t full, empty;
 
 // Function prototypes
@@ -84,11 +85,11 @@ pthread_mutex_t tickMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Ticker thread that runs every second to increment the tick count
 void* ticker_thread(void* arg) {
-    while (1) {
-        sleep(1); // Wait for 1 second
+    while (terminate == 0) {
         pthread_mutex_lock(&tickMutex);
-        tickCount++;
+        tickCount++; // Increment the tick count variable
         pthread_mutex_unlock(&tickMutex);
+        sleep(1); // Wait for 1 second
     }
     return NULL;
 }
@@ -103,30 +104,21 @@ int main(int argc, char *argv[]) {
     }
     
     int timeoutDuration;
-    printf("Choose termination method:\n");
+    printf("Available termination methods:\n");
     printf("1) Timeout\n");
     printf("2) Wait for 'q' and Enter\n");
     printf("3) Run indefinitely until CTRL+C\n");
-    printf("Enter method number: ");
-    int method;
-    scanf("%d", &method);
-    getchar(); // Eat the newline character from the buffer
+    
+    printf("\nEnter program timeout duration in seconds (enter 0 to run indefinitely): "); // Ask user for program timeout duration
+    scanf("%d", &timeoutDuration);
+    if(timeoutDuration < 0)
+        timeoutDuration = 0;
+    alarm(timeoutDuration);
+    
+    // Create input thread
     pthread_t inputThread;
-
-    switch (method) {
-        case 1: // Timeout
-            printf("Enter program timeout duration (seconds): "); // Ask user for program timeout duration
-            scanf("%d", &timeoutDuration);
-            alarm(timeoutDuration);
-            break;
-        case 2: // Await 'q' input
-            pthread_create(&inputThread, NULL, userInputListener, NULL);
-            break;
-        case 3: // Run indefinitely until CTRL+C
-            // Nothing to set up here.
-            break;
-    }
-
+    pthread_create(&inputThread, NULL, userInputListener, NULL);
+            
     // Timeout before starting the actual execution
     for (int i=3; i>=0; i--) {
         printf("Prod-Cons starting in %d seconds\n", i);
@@ -191,15 +183,6 @@ int main(int argc, char *argv[]) {
         sleep(1); // Sleep for 1 second before checking the terminate flag
     }
 
-    // Print runtime duration info before terminating
-    pthread_mutex_lock(&tickMutex);
-    printf("Program ran for %d seconds.\n", tickCount);
-    pthread_mutex_unlock(&tickMutex);
-
-    // Upon termination, first cancel the ticker thread
-    pthread_cancel(tickThread);
-    pthread_join(tickThread, NULL);
-
     // Signal threads for cleanup and exit
     pthread_cancel(producerThread);
     pthread_cancel(consumerThread);
@@ -212,34 +195,50 @@ int main(int argc, char *argv[]) {
 
     // Clean up
     pthread_mutex_destroy(&mutex);
+    pthread_mutex_destroy(&producerRateMutex);
     sem_destroy(&full);
     sem_destroy(&empty);
     free(buffer);
 
+    // Print runtime duration info before terminating
+    pthread_mutex_lock(&tickMutex);
+    printf("Program ran for %d seconds.\n", tickCount);
+    pthread_mutex_unlock(&tickMutex);
+
+    // Upon termination, first cancel the ticker thread
+    pthread_cancel(tickThread);
+    pthread_join(tickThread, NULL);
+    pthread_cancel(inputThread);
+    pthread_join(inputThread, NULL);
+
+
     return EXIT_SUCCESS;
 }
-
 
 // Producer function
 void *producer(void *arg) {
     while (true) {
-        int item = produce_item();
-        sem_wait(&empty); // Decrements the empty semaphore
-        pthread_mutex_lock(&mutex);
+        pthread_mutex_lock(&producerRateMutex);
+        int localRate = producerRate;
+        pthread_mutex_unlock(&producerRateMutex);
 
-        // Critical section
-        for (int i = 0; i < producerRate && count < bufferSize; i++) {
-            put_item(item);
-            item = produce_item();
+        for (int i = 0; i < localRate; i++) {
+            int item = produce_item();
+            sem_wait(&empty);
+
+            pthread_mutex_lock(&mutex); // Enter critical section
+            // Check to ensure the buffer isn't full before adding
+            if (count < bufferSize) {
+                put_item(item); // Add one item to the buffer
+                sem_post(&full); // Signal that an item was added
+            }
+            pthread_mutex_unlock(&mutex); // Exit critical section
         }
-
-        pthread_mutex_unlock(&mutex);
-        sem_post(&full); // Increments the full semaphore
-        sleep(sleepTime); // Sleep for specified time
+        
+        sleep(sleepTime); // Sleep after attempting to produce `localRate` items
     }
     return NULL;
 }
-
 
 // Consumer function
 void *consumer(void *arg) {
@@ -276,10 +275,13 @@ void *actor(void *arg) {
         pthread_mutex_lock(&mutex);
         // Critical section
         double queueUsage = (double)count / bufferSize;
-
-        // Adjust the production rate based on queue usage
-        adjust_production_rate(queueUsage);
         pthread_mutex_unlock(&mutex);
+
+        // Adjust the production rate outside of the mutex-protected section
+        pthread_mutex_lock(&producerRateMutex);
+        adjust_production_rate(queueUsage); // This function must be thread-safe
+        pthread_mutex_unlock(&producerRateMutex);
+
         sleep(actorSleepTime); // Sleep for specified time
     }
     return NULL;
