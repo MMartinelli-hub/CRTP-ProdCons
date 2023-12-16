@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
@@ -24,11 +25,7 @@ int increaseRateCounter = 0; // Counters to track consecutive deviations
 int decreaseRateCounter = 0;
 int adjustmentCount = 3; // A threshold for consecutive counts before adjusting
 
-// Condition variable for termination
-pthread_cond_t condTerminate = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t mutexTerminate = PTHREAD_MUTEX_INITIALIZER;
-
-// Added flag for program termination
+// Flag for program termination
 volatile sig_atomic_t terminate = 0;
 
 // Mutex and Semaphores
@@ -47,16 +44,13 @@ void adjust_production_rate(double queueUsage);
 void fineAdjust_production_rate(double queueUsage);
 void printQueue();
 
-// Input listener to terminate on user input 
+// Input listener to terminate on user input 'q'
 void *userInputListener(void *arg) {
     char input;
     while (1) {
         input = getchar();
         if (input == 'q') {
-            pthread_mutex_lock(&mutexTerminate);
             terminate = 1;
-            pthread_cond_signal(&condTerminate);
-            pthread_mutex_unlock(&mutexTerminate);
             break;
         }
     }
@@ -73,11 +67,52 @@ void signal_handler(int signum) {
     terminate = 1;
 }
 
+void print_usage(const char *programName) {
+    printf("Usage: %s [bufferSize] [lowerThreshold] [upperThreshold] [sleepTime] [actorSleepTime] [producerRate]\n", programName);
+    printf("  bufferSize          Size of the queue (default: %d)\n", DEFAULT_QUEUE_SIZE);
+    printf("  lowerThreshold      Lower threshold for queue adjustment between 0 and 1 (default: %.2f)\n", DEFAULT_LOWER_THRESHOLD);
+    printf("  upperThreshold      Upper threshold for queue adjustment betweem 0 and 1 (default: %.2f)\n", DEFAULT_UPPER_THRESHOLD);
+    printf("  sleepTime           Producer and Consumer threads sleep time in seconds (default: %d)\n", DEFAULT_SLEEP_TIME);
+    printf("  actorSleepTime      Actor thread sleep time in seconds (default: %d)\n", DEFAULT_ACTOR_SLEEP_TIME);
+    printf("  producerRate        Initial producer rate (default: %d)\n", DEFAULT_PRODUCER_RATE);
+    printf("\nExample: %s 50 0.5 0.7 2 3 1\n", programName);
+}
+
 int main(int argc, char *argv[]) {
-    // Ask user for program timeout duration
+    // Check the command line arguments for `-h`, `-help`, or `-usage`
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-help") == 0 || strcmp(argv[i], "-usage") == 0) {
+            print_usage(argv[0]);
+            return 0; // Exit after printing help information
+        }
+    }
+    
     int timeoutDuration;
-    printf("Enter program timeout duration (seconds): ");
-    scanf("%d", &timeoutDuration);
+    printf("Choose termination method:\n");
+    printf("1) Timeout\n");
+    printf("2) Wait for 'q' and Enter\n");
+    printf("3) Run indefinitely until CTRL+C\n");
+    printf("Enter method number: ");
+    int method;
+    scanf("%d", &method);
+    getchar(); // Eat the newline character from the buffer
+    pthread_t inputThread;
+
+    switch (method) {
+        case 1: // Timeout
+            printf("Enter program timeout duration (seconds): "); // Ask user for program timeout duration
+            scanf("%d", &timeoutDuration);
+            alarm(timeoutDuration);
+            break;
+        case 2: // Await 'q' input
+            pthread_create(&inputThread, NULL, userInputListener, NULL);
+            break;
+        case 3: // Run indefinitely until CTRL+C
+            // Nothing to set up here.
+            break;
+    }
+
+    // Timeout before starting the actual execution
     for (int i=3; i>=0; i--) {
         printf("Prod-Cons starting in %d seconds\n", i);
         sleep(1); // Wait for one second
