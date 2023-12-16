@@ -78,6 +78,21 @@ void print_usage(const char *programName) {
     printf("\nExample: %s 50 0.5 0.7 2 3 1\n", programName);
 }
 
+// Declare the tick count variable
+volatile int tickCount = 0;
+pthread_mutex_t tickMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Ticker thread that runs every second to increment the tick count
+void* ticker_thread(void* arg) {
+    while (1) {
+        sleep(1); // Wait for 1 second
+        pthread_mutex_lock(&tickMutex);
+        tickCount++;
+        pthread_mutex_unlock(&tickMutex);
+    }
+    return NULL;
+}
+
 int main(int argc, char *argv[]) {
     // Check the command line arguments for `-h`, `-help`, or `-usage`
     for (int i = 1; i < argc; i++) {
@@ -119,6 +134,13 @@ int main(int argc, char *argv[]) {
     }
     // Clear console before starting the actual execution
     printf("\e[1;1H\e[2J");
+
+    // Create and start the ticker thread
+    pthread_t tickThread;
+    if (pthread_create(&tickThread, NULL, ticker_thread, NULL) != 0) {
+        perror("Failed to create ticker thread");
+        return 1;
+    }
 
     // Set up signal handler to catch SIGALRM for program timeout
     signal(SIGALRM, signal_handler);
@@ -169,6 +191,15 @@ int main(int argc, char *argv[]) {
         sleep(1); // Sleep for 1 second before checking the terminate flag
     }
 
+    // Print runtime duration info before terminating
+    pthread_mutex_lock(&tickMutex);
+    printf("Program ran for %d seconds.\n", tickCount);
+    pthread_mutex_unlock(&tickMutex);
+
+    // Upon termination, first cancel the ticker thread
+    pthread_cancel(tickThread);
+    pthread_join(tickThread, NULL);
+
     // Signal threads for cleanup and exit
     pthread_cancel(producerThread);
     pthread_cancel(consumerThread);
@@ -185,7 +216,6 @@ int main(int argc, char *argv[]) {
     sem_destroy(&empty);
     free(buffer);
 
-    printf("Program has concluded after %d seconds.\n", timeoutDuration);
     return EXIT_SUCCESS;
 }
 
