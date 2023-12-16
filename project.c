@@ -85,18 +85,18 @@ int main(int argc, char *argv[]) {
     // Initialize and validate buffer size and other parameters based on command line arguments or defaults
     bufferSize = (argc > 1) ? atoi(argv[1]) : DEFAULT_QUEUE_SIZE;
     if(bufferSize <= 0) 
-        printf("Illegal buffer size: %d - Set at default: %d\n", bufferSize, DEFAULT_QUEUE_SIZE);
+        printf("Illegal buffer size: %d - Set at default: %d\n", bufferSize, DEFAULT_QUEUE_SIZE); bufferSize = DEFAULT_QUEUE_SIZE;
     lowerThreshold = (argc > 2) ? atof(argv[2]) : DEFAULT_LOWER_THRESHOLD;
     if(lowerThreshold <= 0) 
-        printf("Illegal lower threshold: %.2f - Set at default: %.2f\n", lowerThreshold, DEFAULT_LOWER_THRESHOLD);    
+        printf("Illegal lower threshold: %.2f - Set at default: %.2f\n", lowerThreshold, DEFAULT_LOWER_THRESHOLD); lowerThreshold = DEFAULT_LOWER_THRESHOLD;
     upperThreshold = (argc > 3) ? atof(argv[3]) : DEFAULT_UPPER_THRESHOLD;
     if(upperThreshold >= 1) 
-        printf("Illegal upper threshold: %.2f - Set at default: %.2f\n", upperThreshold, DEFAULT_UPPER_THRESHOLD);
+        printf("Illegal upper threshold: %.2f - Set at default: %.2f\n", upperThreshold, DEFAULT_UPPER_THRESHOLD); upperThreshold = DEFAULT_UPPER_THRESHOLD;
     sleepTime = (argc > 4) ? atoi(argv[4]) : DEFAULT_SLEEP_TIME;
     actorSleepTime = (argc > 5) ? atoi(argv[5]) : DEFAULT_ACTOR_SLEEP_TIME;
     producerRate = (argc > 6) ? atoi(argv[6]) : DEFAULT_PRODUCER_RATE;
     if(producerRate < 0)
-        printf("Illegal producer rate %d - Set at default: %d\n", producerRate, DEFAULT_PRODUCER_RATE);
+        printf("Illegal producer rate %d - Set at default: %d\n", producerRate, DEFAULT_PRODUCER_RATE); producerRate= DEFAULT_PRODUCER_RATE;
     print_parameters(bufferSize, lowerThreshold, upperThreshold, sleepTime, actorSleepTime, producerRate);
     
     int timeoutDuration;
