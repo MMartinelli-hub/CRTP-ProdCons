@@ -6,9 +6,10 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <features.h>
 
 // Default configuration constants
-#define DEFAULT_QUEUE_SIZE 10
+#define DEFAULT_BUFFER_SIZE 10
 #define DEFAULT_LOWER_THRESHOLD 0.3
 #define DEFAULT_UPPER_THRESHOLD 0.7
 #define DEFAULT_SLEEP_TIME 1
@@ -57,7 +58,8 @@ void put_item(int item); // Insert an item in the buffer
 int get_item(); // Remove an item from the buffer
 void consume_item(int item); // Consume (print) the item passed as argument
 void adjust_production_rate(double queueUsage); // Adjust the production rate
-void fineAdjust_production_rate(double queueUsage); // Better adjust the production rate (not working properly)
+void fineAdjust_production_rate(double queueUsage); // Fine adjust the production rate (working only with buffer size >= 50)
+void pauseAdjust_production_rate(double queueUsage); // Adjust the production rate with thresholds to pause and resume the production
 void clean_resources(); // Clean up resources to terminate safely
 void signal_handler(int signum); // Signal handler (for termination message)
 
@@ -65,15 +67,53 @@ void signal_handler(int signum); // Signal handler (for termination message)
 void printQueue(); // Print the queue content
 void* userInputListener(void *arg); // Function to remain in listen to user inputs
 void* ticker_thread(void* arg); // Ticker thread to count the runtime duration 
-void print_usage(const char *programName); // Print how to use the program from command line
-void print_parameters(  int queueSize, 
-                        double lowerThreshold, 
-                        double upperThreshold, 
-                        int sleepTime, 
-                        int actorSleepTime, 
-                        int producerRate); // Print the details about the runtime parameters
+void print_usage_guide(const char *programName); // Print how to use the program from command line
+void print_parameters(); // Print the details about the runtime parameters
 
 int main(int argc, char *argv[]) {
+    // Initialize buffer size and other parameters at defaults
+    bufferSize = DEFAULT_BUFFER_SIZE;
+    lowerThreshold = DEFAULT_LOWER_THRESHOLD;
+    upperThreshold = DEFAULT_UPPER_THRESHOLD;
+    sleepTime = DEFAULT_SLEEP_TIME;
+    actorSleepTime = DEFAULT_ACTOR_SLEEP_TIME;
+    producerRate = DEFAULT_PRODUCER_RATE;
+
+    // Initialize and validate buffer size and other parameters based on command line arguments or defaults if illegal parameters
+    for (int i = 1; i < argc; i++) {
+        // Check the command line arguments for `--h`, `--help`, or `--usage`
+        if (strcmp(argv[i], "--h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0) {
+            print_usage_guide(argv[0]);
+            return 0; // Exit after printing help information
+        } else if (strcmp(argv[i], "-bs") == 0) {
+            if (i + 1 < argc) {
+                bufferSize = atoi(argv[i + 1]);
+            }
+        } else if (strcmp(argv[i], "-lt") == 0) {
+            if (i + 1 < argc) {
+                lowerThreshold = atof(argv[i + 1]);
+            }
+        } else if (strcmp(argv[i], "-ut") == 0) {
+            if (i + 1 < argc) {
+                upperThreshold = atof(argv[i + 1]);
+            }
+        } else if (strcmp(argv[i], "-st") == 0) {
+            if (i + 1 < argc) {
+                sleepTime = atoi(argv[i + 1]);
+            }
+        } else if (strcmp(argv[i], "-ast") == 0) {
+            if (i + 1 < argc) {
+                actorSleepTime = atoi(argv[i + 1]);
+            }
+        } else if (strcmp(argv[i], "-pr") == 0) {
+            if (i + 1 < argc) {
+                producerRate = atoi(argv[i + 1]);
+            }
+        }
+    }
+    print_parameters();
+
+    /*
     // Check the command line arguments for `-h`, `-help`, or `-usage`
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-help") == 0 || strcmp(argv[i], "-usage") == 0) {
@@ -83,9 +123,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Initialize and validate buffer size and other parameters based on command line arguments or defaults
-    bufferSize = (argc > 1) ? atoi(argv[1]) : DEFAULT_QUEUE_SIZE;
+    bufferSize = (argc > 1) ? atoi(argv[1]) : DEFAULT_BUFFER_SIZE;
     if(bufferSize <= 0) 
-        printf("Illegal buffer size: %d - Set at default: %d\n", bufferSize, DEFAULT_QUEUE_SIZE); bufferSize = DEFAULT_QUEUE_SIZE;
+        printf("Illegal buffer size: %d - Set at default: %d\n", bufferSize, DEFAULT_BUFFER_SIZE); bufferSize = DEFAULT_BUFFER_SIZE;
     lowerThreshold = (argc > 2) ? atof(argv[2]) : DEFAULT_LOWER_THRESHOLD;
     if(lowerThreshold <= 0) 
         printf("Illegal lower threshold: %.2f - Set at default: %.2f\n", lowerThreshold, DEFAULT_LOWER_THRESHOLD); lowerThreshold = DEFAULT_LOWER_THRESHOLD;
@@ -96,9 +136,9 @@ int main(int argc, char *argv[]) {
     actorSleepTime = (argc > 5) ? atoi(argv[5]) : DEFAULT_ACTOR_SLEEP_TIME;
     producerRate = (argc > 6) ? atoi(argv[6]) : DEFAULT_PRODUCER_RATE;
     if(producerRate < 0)
-        printf("Illegal producer rate %d - Set at default: %d\n", producerRate, DEFAULT_PRODUCER_RATE); producerRate= DEFAULT_PRODUCER_RATE;
-    print_parameters(bufferSize, lowerThreshold, upperThreshold, sleepTime, actorSleepTime, producerRate);
-    
+        printf("Illegal producer rate %d - Set at default: %d\n", producerRate, DEFAULT_PRODUCER_RATE); producerRate = DEFAULT_PRODUCER_RATE;
+    */
+
     int timeoutDuration;
     printf("Available termination methods:\n");
     printf("1) Timeout\n");
@@ -267,7 +307,8 @@ void *actor(void *arg) {
 
         // Adjust the production rate outside of the mutex-protected section
         pthread_mutex_lock(&producerRateMutex);
-        adjust_production_rate(queueUsage); // This function must be thread-safe
+        //adjust_production_rate(queueUsage); // This function must be thread-safe
+        adjust_production_rate(queueUsage);
         pthread_mutex_unlock(&producerRateMutex);
     }
     return NULL;
@@ -305,20 +346,21 @@ void consume_item(int item) { // Do something with the consumed item
     printQueue(); // Call to visualize the queue after consuming an item
 }
 
-
 void adjust_production_rate(double queueUsage) { // Adjust the production rate based on queue thresholds
-    if (queueUsage < lowerThreshold && (count + producerRate + 1) < bufferSize) {
+    if (queueUsage < lowerThreshold && (count + producerRate) < bufferSize) {
         producerRate++; // Try to increment the production rate
-        printf("Producer rate INCREMENTED to: %d - Queue usage: %d - Free: %d\n", producerRate, count, bufferSize-count);
+        printf("Producer rate INCREMENTED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
     } else if (queueUsage > upperThreshold && producerRate >= 1) {
         producerRate--; // Try to decrement the production rate
         if(queueUsage >= 0.9 && producerRate > 0) {
             producerRate--; // Try to decrement the production rate to avoid overflow
-            printf("Producer rate HARD DECREMENTED to: %d - Queue usage: %d - Free: %d\n", producerRate, count, bufferSize-count);
+            printf("Producer rate HARD DECREMENTED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
         }
         else {
-            printf("Producer rate SOFT DECREMENTED to: %d - Queue usage: %d - Free: %d\n", producerRate, count, bufferSize-count);
+            printf("Producer rate SOFT DECREMENTED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
         }
+    } else {
+        printf("Producer rate NOT CHANGED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
     }
     // Implement additional safety mechanisms as needed
 }
@@ -333,7 +375,7 @@ void fineAdjust_production_rate(double queueUsage) {
         decreaseRateCounter = 0;
         
         if (increaseRateCounter >= adjustmentCount) {
-            producerRate += (lowerThreshold - queueUsage > lowerThreshold * 0.5) ? 2 : 1;
+            producerRate += (lowerThreshold - queueUsage > lowerThreshold * 0.5) ? 1 : 2; // if queueUsage < half 
             if (count + producerRate > bufferSize) {
                 producerRate = bufferSize - count; // Ensure no buffer overflow
                 changeType = "hard"; // This is a hard change to prevent overflow
@@ -367,6 +409,39 @@ void fineAdjust_production_rate(double queueUsage) {
     }
 }
 
+void pauseAdjust_production_rate(double queueUsage) {
+    const double pauseThreshold = upperThreshold + (1 - upperThreshold / 2); // Buffer usage threshold to pause production
+
+    // We need a mechanism to resume production from a paused state:
+    const double resumeThreshold = upperThreshold - (1 - upperThreshold / 2); // Buffer usage threshold to resume production from pause
+
+    const int bufferAvailable = bufferSize - count - producerRate; // Simulate another production at current rate 
+
+    if (producerRate > 0 && queueUsage >= upperThreshold) { // If active producer and usage over upper threshold
+        if (queueUsage >= pauseThreshold || bufferAvailable <= 1) { // If critical over-usage
+            // Pause producer entirely to avoid overflow
+            producerRate = 0;
+            printf("Producer rate PAUSED, Queue usage: %0.2f - Free: %d\n", queueUsage, bufferAvailable);
+        } else {
+            // Decrement rate to prevent buffer overflow
+            producerRate = (producerRate-1 > 0) ? producerRate-1 : 0;
+            if(producerRate == 0) 
+                printf("Producer rate PAUSED, Queue usage: %0.2f - Free: %d\n", queueUsage, bufferAvailable);   
+            printf("Producer rate DECREMENTED to: %d - Queue usage: %0.2f - Free: %d\n", producerRate, queueUsage, bufferAvailable);
+        }
+    } else if (producerRate == 0 && queueUsage <= resumeThreshold) {
+        // Resume production if paused and buffer usage has decreased sufficiently
+        producerRate = 1; // Starting back production with low rate
+        printf("Producer rate RESUMED at: %d - Queue usage: %0.2f - Free: %d\n", producerRate, queueUsage, bufferAvailable);
+    } else if (producerRate > 0 && queueUsage < lowerThreshold && bufferAvailable > producerRate) {
+        // Safely increment producer rate if reasonable buffer space is available
+        producerRate++; 
+        printf("Producer rate INCREMENTED to: %d - Queue usage: %0.2f - Free: %d\n", producerRate, queueUsage, bufferAvailable);
+    } else {
+        printf("Producer rate NOT CHANGED to: %d - Queue usage: %0.2f - Free: %d\n", producerRate, queueUsage, bufferAvailable);
+    }
+}
+
 // Clean up resources like threads, mutexes, semaphores, buffer...
 void clean_resources() { 
     // Signal threads for cleanup and exit
@@ -389,8 +464,8 @@ void clean_resources() {
     free(buffer);
 
     // Print runtime info before terminating
-    printf("\n\n----------------------------------------------------------\n");
-
+    printf("\n"); print_parameters();
+    printf("----------------------------------------------------------\n");
     pthread_mutex_lock(&tickMutex);
     printf("Program ran for %d seconds.\n", tickCount);
     pthread_mutex_unlock(&tickMutex);
@@ -399,7 +474,11 @@ void clean_resources() {
     printf("Number of items left in the queue: %d\n", count);
     int lostItems = prodIdx-consIdx-count;
     double percLostItems = (lostItems/prodIdx)*100;
-    printf("Number of loss items: %d - Percentage: %.1f\% \n", lostItems, percLostItems);
+    printf("Number of loss items: %d - Percentage: %.1f%% \n", lostItems, percLostItems);
+    double prodRatio = (double)prodIdx / tickCount;
+    double consRatio = (double)consIdx / tickCount;
+    printf("Producer ratio over time (seconds): %.2f\n", prodRatio);
+    printf("Consumer ratio over time (seconds): %.2f\n", consRatio);
     printf("----------------------------------------------------------\n\n");
 
     // Cancel the ticker thread
@@ -451,26 +530,34 @@ void* ticker_thread(void* arg) {
 }
 
 // Print how to launch the program from command line
-void print_usage(const char *programName) {
-    printf("Usage: %s [bufferSize] [lowerThreshold] [upperThreshold] [sleepTime] [actorSleepTime] [producerRate]\n", programName);
-    printf("  bufferSize          Size of the queue (default: %d)\n", DEFAULT_QUEUE_SIZE);
-    printf("  lowerThreshold      Lower threshold for queue adjustment between 0 and 1 (default: %.2f)\n", DEFAULT_LOWER_THRESHOLD);
-    printf("  upperThreshold      Upper threshold for queue adjustment betweem 0 and 1 (default: %.2f)\n", DEFAULT_UPPER_THRESHOLD);
-    printf("  sleepTime           Producer and Consumer threads sleep time in seconds (default: %d)\n", DEFAULT_SLEEP_TIME);
-    printf("  actorSleepTime      Actor thread sleep time in seconds (default: %d)\n", DEFAULT_ACTOR_SLEEP_TIME);
-    printf("  producerRate        Initial producer rate (default: %d)\n", DEFAULT_PRODUCER_RATE);
-    printf("\nExample: %s 50 0.5 0.7 2 3 1\n", programName);
+void print_usage_guide(const char *programName) {
+    printf("Usage: %s [options]\n", programName);
+    printf("Options:\n");
+    printf("\t-bs <buffer size (int)>\t\t: Set the buffer size (default: %d)\n", DEFAULT_BUFFER_SIZE);
+    printf("\t-lt <lower threshold (double)>\t: Set the lower threshold (default: %.2f)\n", DEFAULT_LOWER_THRESHOLD);
+    printf("\t-ut <upper threshold (double)>\t: Set the upper threshold (default: %.2f)\n", DEFAULT_UPPER_THRESHOLD);
+    printf("\t-st <sleep time (int)>\t\t: Set the sleep time in seconds (default: %d)\n", DEFAULT_SLEEP_TIME);
+    printf("\t-ast <actor sleep time (int)>\t: Set the actor sleep time in seconds (default: %d)\n", DEFAULT_ACTOR_SLEEP_TIME);
+    printf("\t-pr <producer rate (int)>\t: Set the producer rate (default: %d)\n", DEFAULT_PRODUCER_RATE);
+    printf("Example:\n");
+    printf("\t%s -bs 50 -lt 0.3 -ut 0.7 -st 2 -ast 2 -pr 3\n", programName);
 }
 
 // Print the parameters 
-void print_parameters(int queueSize, double lowerThreshold, double upperThreshold, int sleepTime, int actorSleepTime, int producerRate) {
+void print_parameters() {
     printf("\n----------------------------------------------------------\n");
     printf("RUNTIME PARAMETERS:\n");
-    printf("  bufferSize          %d\n", queueSize);
-    printf("  lowerThreshold      %.2f\n", lowerThreshold);
-    printf("  upperThreshold      %.2f\n", upperThreshold);
-    printf("  sleepTime           %d\n", sleepTime);
-    printf("  actorSleepTime      %d\n", actorSleepTime);
-    printf("  producerRate        %d\n", producerRate);
+    printf("  bufferSize          %d ", bufferSize);
+    (bufferSize == DEFAULT_BUFFER_SIZE) ? printf("\t[default]\n") : printf("\n");
+    printf("  lowerThreshold      %.2f ", lowerThreshold);
+    (lowerThreshold == DEFAULT_LOWER_THRESHOLD) ? printf("\t[default]\n") : printf("\n");
+    printf("  upperThreshold      %.2f ", upperThreshold);
+    (upperThreshold == DEFAULT_UPPER_THRESHOLD) ? printf("\t[default]\n") : printf("\n");
+    printf("  sleepTime           %d ", sleepTime);
+    (sleepTime == DEFAULT_SLEEP_TIME) ? printf("\t[default]\n") : printf("\n");
+    printf("  actorSleepTime      %d ", actorSleepTime);
+    (actorSleepTime == DEFAULT_ACTOR_SLEEP_TIME) ? printf("\t[default]\n") : printf("\n");
+    printf("  producerRate        %d ", producerRate);
+    (producerRate == DEFAULT_PRODUCER_RATE) ? printf("\t[default]\n") : printf("\n");
     printf("----------------------------------------------------------\n\n");
 }
