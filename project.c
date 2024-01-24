@@ -37,6 +37,7 @@ int consIdx = 0; // Counter for the total number of consumed items
 double totDelay = 0; // Sum of the delays of the consumed items
 double minDelay = 0; // Min delay among the consumed items
 double maxDelay = 0; // Max delay among the consumed items
+int messagesForTermination = 0; // Number of messages to be consumed before terminating (optional) 
 volatile int tickCount = 0; // Tick count variable
 volatile sig_atomic_t terminate = 0; // Flag for program termination
 bool debug = false; // Flag for printing debug outputs
@@ -169,11 +170,23 @@ int main(int argc, char *argv[]) {
     printf("3) Wait for 'q' and Enter\n");
     printf("4) Run indefinitely until CTRL+C :)\n");
 
-    printf("\nEnter program timeout duration in seconds (enter 0 to run indefinitely): "); // Ask user for program timeout duration
-    scanf("%d", &timeoutDuration);
-    if(timeoutDuration < 0)
+    printf("\nEnter (1) for termination with timeout, (2) for termination with consumed messages, (0) for termination upon input 'q': "); // Ask user for termination method
+    scanf("%d", &terminationMethod);
+    if(terminationMethod <= 0) { // If termination with user input 'q'
         timeoutDuration = 0;
-    alarm(timeoutDuration);
+        alarm(timeoutDuration);
+    } else if(terminationMethod == 1) { // If termination with timeout
+        printf("\nEnter program timeout duration in seconds (enter 0 to run indefinitely): "); // Ask user for program timeout duration
+        scanf("%d", &timeoutDuration);
+        if(timeoutDuration < 0)
+            timeoutDuration = 0;
+        alarm(timeoutDuration);    
+    } else if(terminationMethod == 2) {
+        printf("\nEnter number of messages to be consumed for termination: "); // Ask user for program timeout duration
+        scanf("%d", &messagesForTermination);
+        timeoutDuration = 0;
+        alarm(timeoutDuration);
+    }
     
     // Timeout before starting the actual execution
     for (int i=3; i>=0; i--) {
@@ -310,6 +323,8 @@ void *consumer(void *arg) {
         Message item = get_item(); // Retrieve one item from the buffer
         consume_item(item); // Consume the retrieved item
         sem_post(&empty); // Increments the empty semaphore
+        if(messagesForTermination != 0 && consIdx >= messagesForTermination) // Terminate program if number of messages to be consumed has been reached
+            terminate = 1;
         pthread_mutex_unlock(&mutex); // Exit critical section
         sleep(consumerSleepTime); // Sleep for consumerSleepTime after consuming an item
     }
@@ -385,11 +400,11 @@ void consume_item(Message item) {
 
 // Adjust the production rate based on queue thresholds
 void adjust_production_rate(double queueUsage) { 
-    if (queueUsage < lowerThreshold && (count + producerRate) < bufferSize) {
+    if (queueUsage < lowerThreshold && (count + producerRate) <= bufferSize * HARD_UPPER_THRESHOLD) {
         producerRate++; // Try to increment the production rate
         if(debug) 
             printf("Producer rate INCREMENTED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
-    } else if ((queueUsage >= upperThreshold || (count + producerRate) >= HARD_UPPER_THRESHOLD) && producerRate >= 1) {
+    } else if ((queueUsage >= upperThreshold || (count + producerRate) >= bufferSize * HARD_UPPER_THRESHOLD) && producerRate >= 1) {
         producerRate--; // Try to decrement the production rate
         if(queueUsage >= HARD_UPPER_THRESHOLD && producerRate > 0) {
             producerRate--; // Try to decrement the production rate to avoid overflow
