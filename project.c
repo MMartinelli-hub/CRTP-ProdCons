@@ -12,7 +12,6 @@
 #define DEFAULT_BUFFER_SIZE 20
 #define DEFAULT_LOWER_THRESHOLD 0.6
 #define DEFAULT_UPPER_THRESHOLD 0.7
-#define HARD_UPPER_THRESHOLD 0.9
 #define DEFAULT_SLEEP_TIME 1
 #define DEFAULT_ACTOR_SLEEP_TIME 3
 #define DEFAULT_PRODUCER_RATE 1
@@ -161,6 +160,7 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+
     // If only the upper threshold has been defined by the user, adjust the lower one accordingly
     if(upperThreshold != DEFAULT_UPPER_THRESHOLD && lowerThreshold == DEFAULT_UPPER_THRESHOLD) {
         lowerThreshold = upperThreshold - 0.1;
@@ -170,6 +170,7 @@ int main(int argc, char *argv[]) {
 
     print_parameters(); // print the execution parameters
 
+    // Ask the user for the termination method 
     int terminationMethod, timeoutDuration;
     printf("Available termination methods:\n");
     printf("1) Timeout\n");
@@ -196,6 +197,7 @@ int main(int argc, char *argv[]) {
     }
     
     // Timeout before starting the actual execution
+    printf("\n");
     for (int i=3; i>=0; i--) {
         printf("Prod-Cons starting in %d seconds\n", i);
         sleep(1); // Wait for one second
@@ -408,14 +410,14 @@ void consume_item(Message item) {
 // Adjust the production rate based on queue thresholds
 void adjust_production_rate(double queueUsage) {
     int initialProducerRate = producerRate;
-    if (queueUsage < lowerThreshold && (count + producerRate +1) <= bufferSize * HARD_UPPER_THRESHOLD) {
-        producerRate++; // Try to increment the production rate
+    if (queueUsage < lowerThreshold && (count + producerRate +1) <= bufferSize * upperThreshold) {
+        producerRate++; // Increment the production rate
     } 
-    if ((queueUsage >= upperThreshold || (count + producerRate) >= bufferSize * HARD_UPPER_THRESHOLD) && producerRate > 0) {
-        producerRate--; // Try to decrement the production rate
+    if ((queueUsage >= upperThreshold || (count + producerRate) >= bufferSize * upperThreshold) && producerRate > 0) {
+        producerRate--; // Soft Decrement the production rate
     }
-    if(queueUsage >= HARD_UPPER_THRESHOLD && producerRate > 0) {
-        producerRate--; // Try to decrement the production rate to avoid overflow
+    if((count + producerRate) >= bufferSize * upperThreshold && producerRate > 0) {
+        producerRate--; // Hard Decrement the production rate to avoid overflow
     }    
 
     if(debug) {
