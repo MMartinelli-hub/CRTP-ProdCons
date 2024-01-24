@@ -40,3 +40,21 @@ Example:
 ./project -bs 50 -lt 0.6 -ut 0.7 -pst 1 -cst 1 -ast 2 -pr 3
 ```
 ---
+## Validation of Input Parameters
+The input parameters need to respect the following properties:
+    
+    -bs <buffer size (int)>: must be an integer > 0; however the code works better with > 10  
+    -lt <lower threshold (double)>: must be a double in the interval [0, 1)
+    -ut <upper threshold (double)>: must be a double in the interval (0, 1] greater than the lower threshold 
+    -pst <producer sleep time (int)>: must be an integer
+    -pst <consumer sleep time (int)>: must be an integer
+    -ast <actor sleep time (int)>: must be an integer
+    -pr <producer rate (int)>: must be an integer
+
+It's important to notice some aspects:
+1. To have more freedom in the simulations, no actual validation is performed on the input parameters, so it is up to the user to respect what is defined above;
+2. If only the upper threshold is specified, the lower threshold is set as (upperThreshold - 0.1). 
+If that behavior is not wanted, the user should explicitly define also the lower threshold.
+3. For the program's correct behavior, an upper threshold in buffer utilization has been fixed as 0.9.
+If that behavior is not wanted, it's sufficient to change the value associated with "#define HARD_UPPER_THRESHOLD" in the code.
+---
