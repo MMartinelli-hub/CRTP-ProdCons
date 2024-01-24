@@ -1,4 +1,4 @@
-# Producer-Consumer with rate adjustment
+# Producer-Consumer with dynamic rate adjustment
 ---
 
 A single producer - single consumer with production rate adjustment implementation in C using threads and semaphores.
