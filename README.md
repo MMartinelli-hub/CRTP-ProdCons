@@ -4,6 +4,7 @@
 A single producer - single consumer with production rate adjustment implementation in C using threads and semaphores.
 
 An additional thread "actor" has been implemented to monitor the buffer, decide if it is underused, overused, or none, and adjust the production rate.
+
 The adjustments can be of four types:
 1. Increment: increment the producer rate of 1
 2. Soft Decrement: decrement the producer rate of 1
