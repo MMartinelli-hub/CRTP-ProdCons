@@ -497,9 +497,9 @@ void printQueue() {
     printf("\t|");
     for (int i = 0; i < bufferSize; i++) {
         if (buffer[i].item == 0) {
-            printf("--|");
+            printf("---|");
         } else {
-            printf("%2d|", buffer[i].item);
+            printf("%3d|", buffer[i].item);
         }
     }
     printf("\n");
