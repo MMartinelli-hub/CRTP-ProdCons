@@ -406,26 +406,33 @@ void consume_item(Message item) {
 }
 
 // Adjust the production rate based on queue thresholds
-void adjust_production_rate(double queueUsage) { 
-    if (queueUsage < lowerThreshold && (count + producerRate) <= bufferSize * HARD_UPPER_THRESHOLD) {
+void adjust_production_rate(double queueUsage) {
+    int initialProducerRate = producerRate;
+    if (queueUsage < lowerThreshold && (count + producerRate +1) <= bufferSize * HARD_UPPER_THRESHOLD) {
         producerRate++; // Try to increment the production rate
-        if(debug) 
-            printf("Producer rate INCREMENTED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
-    } else if ((queueUsage >= upperThreshold || (count + producerRate) >= bufferSize * HARD_UPPER_THRESHOLD) && producerRate >= 1) {
+    } 
+    if ((queueUsage >= upperThreshold || (count + producerRate) >= bufferSize * HARD_UPPER_THRESHOLD) && producerRate > 0) {
         producerRate--; // Try to decrement the production rate
-        if(queueUsage >= HARD_UPPER_THRESHOLD && producerRate > 0) {
-            producerRate--; // Try to decrement the production rate to avoid overflow
-            if(debug)
-                printf("Producer rate HARD DECREMENTED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
-        }
-        else {
-            if(debug)
-                printf("Producer rate SOFT DECREMENTED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
-        }
-    } else {
-        if(debug)
-            printf("Producer rate NOT CHANGED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
     }
+    if(queueUsage >= HARD_UPPER_THRESHOLD && producerRate > 0) {
+        producerRate--; // Try to decrement the production rate to avoid overflow
+    }    
+
+    if(debug) {
+        if(producerRate == initialProducerRate) {
+            printf("Producer rate NOT CHANGED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
+            return;
+        } else if(producerRate > initialProducerRate) {
+            printf("Producer rate INCREMENTED: %d-->%d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", initialProducerRate, producerRate, count, bufferSize-count, (queueUsage*100));
+            return;
+        } else if(producerRate == initialProducerRate-1) {
+            printf("Producer rate SOFT DECREMENTED: %d-->%d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", initialProducerRate, producerRate, count, bufferSize-count, (queueUsage*100));
+            return;
+        } else {
+            printf("Producer rate HARD DECREMENTED: %d-->%d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", initialProducerRate, producerRate, count, bufferSize-count, (queueUsage*100));
+            return;
+        }
+    }        
 }
 
 // Clean up resources like threads, mutexes, semaphores, buffer... before exiting the program
