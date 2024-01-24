@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <features.h>
+#include <stdatomic.h>
 
 // Default configuration constants
 #define DEFAULT_BUFFER_SIZE 20
@@ -26,7 +27,7 @@ typedef struct {
 Message *buffer;
 int bufferSize;
 double lowerThreshold, upperThreshold; // Thresholds for the buffer usage
-int producerSleepTime, consumerSleepTime, actorSleepTime; // Sleep time for the producer, consumer, and actor
+atomic_int producerSleepTime, consumerSleepTime, actorSleepTime; // Sleep time for the producer, consumer, and actor
 int producerRate; // Number of messages the producer try to add in a single iteration before going to sleep
 int in = 0, out = 0, count = 0; // Indexes for the circular buffer 
 
@@ -118,8 +119,9 @@ int main(int argc, char *argv[]) {
     bufferSize = DEFAULT_BUFFER_SIZE;
     lowerThreshold = DEFAULT_LOWER_THRESHOLD;
     upperThreshold = DEFAULT_UPPER_THRESHOLD;
-    producerSleepTime = consumerSleepTime = DEFAULT_SLEEP_TIME;
-    actorSleepTime = DEFAULT_ACTOR_SLEEP_TIME;
+    atomic_init(&producerSleepTime, DEFAULT_SLEEP_TIME);
+    atomic_init(&consumerSleepTime, DEFAULT_SLEEP_TIME);
+    atomic_init(&actorSleepTime, DEFAULT_ACTOR_SLEEP_TIME);
     producerRate = DEFAULT_PRODUCER_RATE;
 
     // Initialize and validate buffer size and other parameters based on command line arguments 
@@ -316,7 +318,7 @@ void *producer(void *arg) {
             pthread_mutex_unlock(&mutex); // Exit critical section
         }
         
-        sleep(producerSleepTime); // Sleep for producerSleepTime after attempting to produce `localRate` items
+        sleep(atomic_load(&producerSleepTime)); // Sleep for producerSleepTime after attempting to produce `localRate` items
     }
     return NULL;
 }
@@ -335,7 +337,7 @@ void *consumer(void *arg) {
         if(messagesForTermination != 0 && consIdx >= messagesForTermination) // Terminate program if number of messages to be consumed has been reached
             terminate = 1;
         pthread_mutex_unlock(&mutex); // Exit critical section
-        sleep(consumerSleepTime); // Sleep for consumerSleepTime after consuming an item
+        sleep(atomic_load(&consumerSleepTime)); // Sleep for consumerSleepTime after consuming an item
     }
     return NULL;
 }
@@ -344,7 +346,7 @@ void *consumer(void *arg) {
 void *actor(void *arg) {
     sleep(3);
     while (true) {
-        sleep(actorSleepTime); // Sleep for actorSleepTime
+        sleep(atomic_load(&actorSleepTime)); // Sleep for actorSleepTime
         
         // Critical Section
         pthread_mutex_lock(&mutex); // Enter critical section
@@ -509,21 +511,6 @@ void printOccupationAtTime() {
     printf("%d: %.2f %d\n", timeIdx++, (double)count / bufferSize, producerRate);
 }
 
-// Input listener to terminate on user input 'q'
-void *userInputListener(void *arg) {
-    char input;
-    while (1) {
-        input = getchar();
-        if (input == 'q') {
-            pthread_mutex_lock(&tickMutex); // by taking the lock mutex we assure ticker_thread is sleeping
-            terminate = 1;
-            pthread_mutex_unlock(&tickMutex);
-            break;
-        }
-    }
-    return NULL;
-}
-
 // Ticker thread that runs every second to increment the tick count
 void* ticker_thread(void* arg) {
     while (terminate == 0) {
@@ -535,3 +522,216 @@ void* ticker_thread(void* arg) {
     return NULL;
 }
 
+// Input listener to terminate on user input 'q' and adjust runtime parameters dynamically
+void *userInputListener(void *arg) {
+    sleep(5);
+    const char *commands[] = {"q", "-bs", "-lt", "-ut", "-pst", "-cst", "-ast", "-pr"};
+    char input[20];
+    while (1) {
+        bzero(&input, sizeof(input));
+        fgets(input, sizeof(input), stdin);
+
+        // Remove new line character from the input
+        input[strcspn(input, "\n")] = 0;
+
+        // Check if the user entered one of the commands
+        int commandIndex = -1;
+        for(int i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
+            if(strcmp(input, commands[i]) == 0) {
+                commandIndex = i;
+                break;
+            }
+        }
+
+        // Process user input based on the command
+        switch (commandIndex)
+        {
+        case 0: // q
+            pthread_mutex_lock(&tickMutex); // by taking the lock mutex we assure ticker_thread is sleeping
+            terminate = 1;
+            pthread_mutex_unlock(&tickMutex);
+            
+            break;
+        case 1: // -bs
+            pthread_mutex_lock(&mutex);
+            pthread_mutex_lock(&producerRateMutex);
+            printf("Enter buffer size: ");
+            fgets(input, sizeof(input), stdin);
+            int newBufferSize;
+            if (sscanf(input, "%d", &newBufferSize) == 1 && newBufferSize >= bufferSize) {
+                /*if(resizeBuffer(newBufferSize)) {
+                    printf("Buffer size set to: %d\n", bufferSize);
+                    printQueue();
+                }*/
+                printf("Buffer size value read: %d\n", newBufferSize);
+                print_parameters();
+            } else {
+                printf("Invalid buffer size. It remains unchanged.\n");
+            }
+            pthread_mutex_unlock(&producerRateMutex);
+            pthread_mutex_unlock(&mutex);
+            
+            break;
+        case 2:  // -lt
+            pthread_mutex_lock(&mutex);
+            pthread_mutex_lock(&producerRateMutex);
+            printf("Enter lower threshold: ");
+            fgets(input, sizeof(input), stdin);
+            double newLowerThreshold;
+            if (sscanf(input, "%lf", &newLowerThreshold) == 1) {
+                if(newLowerThreshold > 0 && newLowerThreshold <= 1) {
+                    lowerThreshold = newLowerThreshold;
+                    printf("Lower threshold set to: %.2f\n", lowerThreshold);
+                    print_parameters();
+                }
+                else {
+                    printf("Invalid lower threshold. It remains unchanged.\n");    
+                }
+            } else {
+                printf("Invalid lower threshold. It remains unchanged.\n");
+            }
+            pthread_mutex_unlock(&producerRateMutex);
+            pthread_mutex_unlock(&mutex);
+            
+            break;
+        case 3:  // -ut
+            pthread_mutex_lock(&mutex);
+            pthread_mutex_lock(&producerRateMutex);
+            printf("Enter upper threshold: ");
+            fgets(input, sizeof(input), stdin);
+            double newUpperThreshold;
+            if (sscanf(input, "%lf", &newUpperThreshold) == 1) {
+                if(newUpperThreshold > 0 && newUpperThreshold <= 1) {
+                    upperThreshold = newUpperThreshold;
+                    printf("Upper threshold set to: %.2f\n", upperThreshold);
+                    print_parameters();
+                }
+                else {
+                    printf("Invalid upper threshold. It remains unchanged.\n");    
+                }
+            } else {
+                printf("Invalid upper threshold. It remains unchanged.\n");
+            }
+            pthread_mutex_unlock(&producerRateMutex);
+            pthread_mutex_unlock(&mutex);
+            
+            break;
+        case 4:  // -pst
+            pthread_mutex_lock(&mutex);
+            pthread_mutex_lock(&producerRateMutex);
+            printf("Enter producer sleep time: ");
+            fgets(input, sizeof(input), stdin);
+            int newProducerSleepTime;
+            if (sscanf(input, "%d", &newProducerSleepTime) == 1) {
+                atomic_store(&producerSleepTime, newProducerSleepTime);
+                printf("Producer sleep time set to: %d\n", producerSleepTime);
+                print_parameters();
+            }  else {
+                printf("Invalid upper threshold. It remains unchanged.\n");
+            }
+            pthread_mutex_unlock(&producerRateMutex);
+            pthread_mutex_unlock(&mutex);
+            
+            break;
+        case 5:  // -cst
+            pthread_mutex_lock(&mutex);
+            pthread_mutex_lock(&producerRateMutex);
+            printf("Enter consumer sleep time: ");
+            fgets(input, sizeof(input), stdin);
+            int newConsumerSleepTime;
+            if (sscanf(input, "%d", &newConsumerSleepTime) == 1) {
+                atomic_store(&consumerSleepTime, newConsumerSleepTime);
+                printf("Consumer sleep time set to: %d\n", consumerSleepTime);
+                print_parameters();
+            }  else {
+                printf("Invalid upper threshold. It remains unchanged.\n");
+            }
+            pthread_mutex_unlock(&producerRateMutex);
+            pthread_mutex_unlock(&mutex);
+            
+            break;
+        case 6:  // -ast
+            pthread_mutex_lock(&mutex);
+            pthread_mutex_lock(&producerRateMutex);
+            printf("Enter actor sleep time: ");
+            fgets(input, sizeof(input), stdin);
+            int newActorSleepTime;
+            if (sscanf(input, "%d", &newActorSleepTime) == 1) {
+                atomic_store(&actorSleepTime, newActorSleepTime);
+                printf("Actor sleep time set to: %d\n", actorSleepTime);
+                print_parameters();
+            }  else {
+                printf("Invalid upper threshold. It remains unchanged.\n");
+            }
+            pthread_mutex_unlock(&producerRateMutex);
+            pthread_mutex_unlock(&mutex);
+            
+            break;
+        case 7:  // -pr
+            pthread_mutex_lock(&mutex);
+            pthread_mutex_lock(&producerRateMutex);
+            printf("Enter producer rate: ");
+            fgets(input, sizeof(input), stdin);
+            int newProducerRate;
+            if (sscanf(input, "%d", &newProducerRate) == 1) {
+                producerRate = newProducerRate;
+                printf("Producer rate set to: %d\n", producerRate);
+                print_parameters();
+            } else {
+                printf("Invalid producer rate. It remains unchanged.\n");
+            }
+            pthread_mutex_unlock(&producerRateMutex);
+            pthread_mutex_unlock(&mutex);
+            
+            break;
+        default:
+            if(strlen(input) >= 1)
+                printf("Invalid input: %s\n", input);
+            
+            break;
+        }
+    }
+    return NULL;
+}
+
+int resizeBuffer(int newSize) {
+    // Allocate a new buffer with the specified size
+    Message *newBuffer = malloc(newSize * sizeof(Message));
+    if(newBuffer == NULL) {
+        // Handle allocation failure
+        fprintf(stderr, "Failed to allocate memory for the new buffer");
+        return 1;   
+    }
+
+    // Copy the elements from the old buffer to the new buffer
+    int inIdx = in; 
+    int outIdx = out;
+    time_t oldest = time(NULL);
+    for(int i = 0; i < bufferSize; i++) {
+        if(buffer[i].item != 0)
+            inIdx = copy_item(newBuffer, newSize, inIdx, buffer[i]);
+            if(difftime(oldest, buffer[i].timestamp) > 0) {
+                oldest = buffer[i].timestamp;
+                outIdx = i;
+            } 
+    }
+
+    // Update the circular buffer indexes
+    in = inIdx;
+    out = outIdx;
+
+    // Free the memory occupied by the old buffer
+    free(buffer);
+
+    // Update the global buffer pointer to point to the new buffer and adjust its size
+    buffer = newBuffer;
+    bufferSize = newSize;
+    return 0;
+}
+
+int copy_item(Message *newBuffer, int newBufferSize, int inIdx, Message m) { 
+    newBuffer[inIdx].item = m.item;
+    newBuffer[inIdx].timestamp = m.timestamp;
+    inIdx = (inIdx + 1) % newBufferSize;
+    return inIdx;
+}
