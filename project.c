@@ -12,6 +12,7 @@
 #define DEFAULT_BUFFER_SIZE 20
 #define DEFAULT_LOWER_THRESHOLD 0.4
 #define DEFAULT_UPPER_THRESHOLD 0.7
+#define HARD_UPPER_THRESHOLD 0.9
 #define DEFAULT_SLEEP_TIME 1
 #define DEFAULT_ACTOR_SLEEP_TIME 3
 #define DEFAULT_PRODUCER_RATE 1
@@ -254,7 +255,7 @@ int main(int argc, char *argv[]) {
     } else {
         printf("Ticker thread created\n");
     } 
-    printf("Semaphores and threads succesfully created\n");
+    printf("Semaphores and mutex succesfully created\n");
     printf("----------------------------------------------------------\n\n\n");
 
 
@@ -388,9 +389,9 @@ void adjust_production_rate(double queueUsage) {
         producerRate++; // Try to increment the production rate
         if(debug) 
             printf("Producer rate INCREMENTED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
-    } else if (queueUsage >= upperThreshold && producerRate >= 1) {
+    } else if ((queueUsage >= upperThreshold || (count + producerRate) >= HARD_UPPER_THRESHOLD) && producerRate >= 1) {
         producerRate--; // Try to decrement the production rate
-        if(queueUsage >= 0.9 && producerRate > 0) {
+        if(queueUsage >= HARD_UPPER_THRESHOLD && producerRate > 0) {
             producerRate--; // Try to decrement the production rate to avoid overflow
             if(debug)
                 printf("Producer rate HARD DECREMENTED to: %d - Queue usage: %d - Free: %d - Usage ratio: %.1f%%\n", producerRate, count, bufferSize-count, (queueUsage*100));
