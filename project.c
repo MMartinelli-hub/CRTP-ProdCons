@@ -10,7 +10,7 @@
 
 // Default configuration constants
 #define DEFAULT_BUFFER_SIZE 20
-#define DEFAULT_LOWER_THRESHOLD 0.4
+#define DEFAULT_LOWER_THRESHOLD 0.6
 #define DEFAULT_UPPER_THRESHOLD 0.7
 #define HARD_UPPER_THRESHOLD 0.9
 #define DEFAULT_SLEEP_TIME 1
@@ -161,6 +161,13 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+    // If only the upper threshold has been defined by the user, adjust the lower one accordingly
+    if(upperThreshold != DEFAULT_UPPER_THRESHOLD && lowerThreshold == DEFAULT_UPPER_THRESHOLD) {
+        lowerThreshold = upperThreshold - 0.1;
+        if(lowerThreshold < 0)
+            lowerThreshold = 0;
+    }
+
     print_parameters(); // print the execution parameters
 
     int terminationMethod, timeoutDuration;
