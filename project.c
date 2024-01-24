@@ -88,7 +88,7 @@ void print_usage_guide(const char *programName) {
     printf("\t-pst <prod. sleep time (int)>\t: Set the producer sleep time in seconds (default: %d)\n", DEFAULT_SLEEP_TIME);
     printf("\t-cst <cons. sleep time (int)>\t: Set the consumer sleep time in seconds (default: %d)\n", DEFAULT_SLEEP_TIME);
     printf("\t-ast <actor sleep time (int)>\t: Set the actor sleep time in seconds (default: %d)\n", DEFAULT_ACTOR_SLEEP_TIME);
-    printf("\t-pr  <producer rate (int)>\t: Set the producer rate (default: %d)\n", DEFAULT_PRODUCER_RATE);
+    printf("\t-pr  <producer rate (int)>\t: Set the initial producer rate (default: %d)\n", DEFAULT_PRODUCER_RATE);
     printf("Example:\n");
     printf("\t%s -bs 50 -lt 0.3 -ut 0.7 -pst 2 -cst 1 -ast 2 -pr 3\n", programName);
 }
@@ -200,11 +200,13 @@ int main(int argc, char *argv[]) {
         scanf("%d", &consumedMessagesForTermination);
         timeoutDuration = 0;
         alarm(timeoutDuration);
+        break;
     case 3: // Termination with num of produced messages
         printf("\nEnter number of messages to be produced for termination: "); // Ask user for program timeout duration
         scanf("%d", &producedMessagesForTermination);
         timeoutDuration = 0;
         alarm(timeoutDuration);
+        break;
     default:
         timeoutDuration = 0;
         alarm(timeoutDuration);
@@ -292,7 +294,7 @@ int main(int argc, char *argv[]) {
     } else {
         printf("Ticker thread created\n");
     } 
-    printf("Semaphores and mutex succesfully created\n");
+    printf("Semaphores and mutexes succesfully created\n");
     printf("----------------------------------------------------------\n\n\n");
 
 
@@ -413,14 +415,13 @@ Message get_item() {
 
 // Do something with the consumed item
 void consume_item(Message item) { 
-    if(debug) {
         double delay = difftime(time(NULL), item.timestamp); // Compute the delay for the current message
         totDelay += delay; // Update the total delay
         if(delay < minDelay) // Check if minDelay needs to be updated
             minDelay = delay;
         if(delay > maxDelay) // Check if maxDelay needs to be updated
             maxDelay = delay;
-
+    if(debug) {
         printf("Consumed: %d", item.item);
         printQueue(); // Call to visualize the queue after consuming an item
     } else {
@@ -490,7 +491,6 @@ void clean_resources() {
     printf("Average delay among the consumed items: %.3f\n", totDelay/consIdx);
     printf("Min delay among the consumed items: %.1f\n", minDelay);
     printf("Max delay among the consumed items: %.1f\n", maxDelay);
-    printf("Number of items left in the queue: %d\n", count);
     int lostItems = prodIdx-consIdx;
     double percLostItems = ((double)lostItems / prodIdx)*100;
     printf("Number of items left in the queue: %d - Percentage: %.1f%% \n", lostItems, percLostItems);
