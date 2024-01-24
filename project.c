@@ -16,8 +16,14 @@
 #define DEFAULT_ACTOR_SLEEP_TIME 3
 #define DEFAULT_PRODUCER_RATE 1
 
+// Structure to represent a message with timestamp
+typedef struct {
+    int item;
+    time_t timestamp;   
+} Message;
+
 // Global variables
-int *buffer;
+Message *buffer;
 int bufferSize;
 double lowerThreshold, upperThreshold; // Thresholds for the buffer usage
 int producerSleepTime, consumerSleepTime, actorSleepTime; // Sleep time for the producer, consumer, and actor
@@ -27,6 +33,9 @@ int in = 0, out = 0, count = 0; // Indexes for the circular buffer
 // Utility global variables
 int prodIdx = 0; // Counter for the total number of produced items
 int consIdx = 0; // Counter for the total number of consumed items 
+double totDelay = 0; // Sum of the delays of the consumed items
+double minDelay = 0; // Min delay among the consumed items
+double maxDelay = 0; // Max delay among the consumed items
 volatile int tickCount = 0; // Tick count variable
 volatile sig_atomic_t terminate = 0; // Flag for program termination
 bool debug = false; // Flag for printing debug outputs
@@ -52,18 +61,18 @@ void *consumer(void *arg); // Consumer function
 void *actor(void *arg); // Actor function
 int produce_item(); // Generate an item 
 void put_item(int item); // Insert an item in the buffer 
-int get_item(); // Remove an item from the buffer
-void consume_item(int item); // Consume (print) the item passed as argument
+Message get_item(); // Remove an item from the buffer
+void consume_item(Message item); // Consume (print) the item passed as argument
 void adjust_production_rate(double queueUsage); // Adjust the production rate
 void clean_resources(); // Clean up resources to terminate safely
 void signal_handler(int signum); // Signal handler (for termination message upon specified timeout)
 
 // Utility function prototypes
 void printQueue(); // Print the queue content
+void printOccupationAtTime(); // Print the queue occupation and production rate 
 void* userInputListener(void *arg); // Function to remain in listen to user inputs
 void* ticker_thread(void* arg); // Ticker thread to count the runtime duration 
 void print_usage_guide(const char *programName); // Print how to use the program from command line
-void printOccupationAtTime();
 
 // Print how to launch the program from command line
 void print_usage_guide(const char *programName) {
@@ -102,6 +111,7 @@ void print_parameters() {
     printf("----------------------------------------------------------\n\n");
 }
 
+// Main Function
 int main(int argc, char *argv[]) {
     // Initialize buffer size and other parameters at defaults
     bufferSize = DEFAULT_BUFFER_SIZE;
@@ -151,12 +161,13 @@ int main(int argc, char *argv[]) {
     }
     print_parameters(); // print the execution parameters
 
-    int timeoutDuration;
+    int terminationMethod, timeoutDuration;
     printf("Available termination methods:\n");
     printf("1) Timeout\n");
-    printf("2) Wait for 'q' and Enter\n");
-    printf("3) Run indefinitely until CTRL+C :)\n");
-    
+    printf("2) Wait for X consumed messages\n");
+    printf("3) Wait for 'q' and Enter\n");
+    printf("4) Run indefinitely until CTRL+C :)\n");
+
     printf("\nEnter program timeout duration in seconds (enter 0 to run indefinitely): "); // Ask user for program timeout duration
     scanf("%d", &timeoutDuration);
     if(timeoutDuration < 0)
@@ -176,13 +187,15 @@ int main(int argc, char *argv[]) {
     printf("\n## ENVIRONMENT INITIALIZATION ##\n");
     printf("----------------------------------------------------------\n");
     // Dynamic allocation of the buffer
-    buffer = malloc(bufferSize * sizeof(int));
+    buffer = malloc(bufferSize * sizeof(Message));
     if(buffer == NULL) {
         perror("Unable to allocate buffer");
         return EXIT_FAILURE;
     } else {
         for (int i = 0; i < bufferSize; i++) {
-            buffer[i] = 0; // Initialize the buffer to empty
+            bzero(&buffer[i], sizeof(Message));
+            //buffer[i].item = 0; // Initialize the buffer to empty
+            //buffer[i].timestamp = time(NULL);
         }
         printf("Buffer of size %d allocated and initialized to empty\n", bufferSize);
     }
@@ -293,7 +306,7 @@ void *consumer(void *arg) {
         
         // Critical Section
         pthread_mutex_lock(&mutex); // Enter critical section 
-        int item = get_item(); // Retrieve one item from the buffer
+        Message item = get_item(); // Retrieve one item from the buffer
         consume_item(item); // Consume the retrieved item
         sem_post(&empty); // Increments the empty semaphore
         pthread_mutex_unlock(&mutex); // Exit critical section
@@ -328,7 +341,8 @@ int produce_item() {
 
 // Put an item in the buffer
 void put_item(int item) { 
-    buffer[in] = item;
+    buffer[in].item = item;
+    buffer[in].timestamp = time(NULL);
     in = (in + 1) % bufferSize;
     count++;
     if(debug) {
@@ -341,9 +355,10 @@ void put_item(int item) {
 }
 
 // Take an item from the buffer
-int get_item() { 
-    int item = buffer[out];
-    buffer[out] = 0; // Indicate that the position is now empty
+Message get_item() { 
+    Message item = buffer[out];
+    bzero(&buffer[out], sizeof(Message));
+    //buffer[out].item = 0; // Indicate that the position is now empty
     out = (out + 1) % bufferSize;
     count--;
     consIdx++;
@@ -351,9 +366,16 @@ int get_item() {
 }
 
 // Do something with the consumed item
-void consume_item(int item) { 
+void consume_item(Message item) { 
     if(debug) {
-        printf("Consumed: %d", item);
+        double delay = difftime(time(NULL), item.timestamp); // Compute the delay for the current message
+        totDelay += delay; // Update the total delay
+        if(delay < minDelay) // Check if minDelay needs to be updated
+            minDelay = delay;
+        if(delay > maxDelay) // Check if maxDelay needs to be updated
+            maxDelay = delay;
+
+        printf("Consumed: %d", item.item);
         printQueue(); // Call to visualize the queue after consuming an item
     } else {
         printOccupationAtTime();
@@ -412,6 +434,9 @@ void clean_resources() {
     pthread_mutex_unlock(&tickMutex);
     printf("Number of produced items: %d\n", prodIdx);
     printf("Number of consumed items: %d\n", consIdx);
+    printf("Average delay among the consumed items: %.3f\n", totDelay/consIdx);
+    printf("Min delay among the consumed items: %.1f\n", minDelay);
+    printf("Max delay among the consumed items: %.1f\n", maxDelay);
     printf("Number of items left in the queue: %d\n", count);
     int lostItems = prodIdx-consIdx;
     double percLostItems = ((double)lostItems / prodIdx)*100;
@@ -437,13 +462,19 @@ void signal_handler(int signum) {
 void printQueue() {
     printf("\t|");
     for (int i = 0; i < bufferSize; i++) {
-        if (buffer[i] == 0) {
+        if (buffer[i].item == 0) {
             printf("--|");
         } else {
-            printf("%2d|", buffer[i]);
+            printf("%2d|", buffer[i].item);
         }
     }
     printf("\n");
+}
+
+int timeIdx = 1;
+// Print the queue occupation and producer rate
+void printOccupationAtTime() {
+    printf("%d: %.2f %d\n", timeIdx++, (double)count / bufferSize, producerRate);
 }
 
 // Input listener to terminate on user input 'q'
@@ -472,7 +503,3 @@ void* ticker_thread(void* arg) {
     return NULL;
 }
 
-int timeIdx = 1;
-void printOccupationAtTime() {
-    printf("%d: %.2f %d\n", timeIdx++, (double)count / bufferSize, producerRate);
-}
