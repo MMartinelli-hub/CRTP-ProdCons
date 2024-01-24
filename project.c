@@ -37,9 +37,10 @@ int consIdx = 0; // Counter for the total number of consumed items
 double totDelay = 0; // Sum of the delays of the consumed items
 double minDelay = 0; // Min delay among the consumed items
 double maxDelay = 0; // Max delay among the consumed items
-int messagesForTermination = 0; // Number of messages to be consumed before terminating (optional) 
+int consumedMessagesForTermination = 0; // Number of messages to be consumed before terminating (optional) 
+int producedMessagesForTermination = 0; // Number of messages to be produced before terminating (optional)
 volatile int tickCount = 0; // Tick count variable
-volatile sig_atomic_t terminate = 0; // Flag for program termination
+atomic_bool terminate; // Flag for program termination
 bool debug = false; // Flag for printing debug outputs
 
 // Mutex 
@@ -115,6 +116,8 @@ void print_parameters() {
 
 // Main Function
 int main(int argc, char *argv[]) {
+    atomic_store(&terminate, false);
+
     // Initialize buffer size and other parameters at defaults
     bufferSize = DEFAULT_BUFFER_SIZE;
     lowerThreshold = DEFAULT_LOWER_THRESHOLD;
@@ -177,25 +180,35 @@ int main(int argc, char *argv[]) {
     printf("Available termination methods:\n");
     printf("1) Timeout\n");
     printf("2) Wait for X consumed messages\n");
-    printf("3) Wait for 'q' and Enter\n");
-    printf("4) Run indefinitely until CTRL+C :)\n");
+    printf("3) Wait for X produced messages\n");
+    printf("4) Wait for 'q' and Enter\n");
+    printf("5) Run indefinitely until CTRL+C :)\n");
 
-    printf("\nEnter (1) for termination with timeout, (2) for termination with consumed messages, (0) for termination upon input 'q': "); // Ask user for termination method
+    printf("\nEnter desired termination method: "); // Ask user for termination method
     scanf("%d", &terminationMethod);
-    if(terminationMethod <= 0) { // If termination with user input 'q'
-        timeoutDuration = 0;
-        alarm(timeoutDuration);
-    } else if(terminationMethod == 1) { // If termination with timeout
+    switch (terminationMethod)
+    {
+    case 1: // Termination with timeout
         printf("\nEnter program timeout duration in seconds (enter 0 to run indefinitely): "); // Ask user for program timeout duration
         scanf("%d", &timeoutDuration);
         if(timeoutDuration < 0)
             timeoutDuration = 0;
-        alarm(timeoutDuration);    
-    } else if(terminationMethod == 2) {
+        alarm(timeoutDuration);
+        break;
+    case 2: // Termination with num of consumed messages
         printf("\nEnter number of messages to be consumed for termination: "); // Ask user for program timeout duration
-        scanf("%d", &messagesForTermination);
+        scanf("%d", &consumedMessagesForTermination);
         timeoutDuration = 0;
         alarm(timeoutDuration);
+    case 3: // Termination with num of produced messages
+        printf("\nEnter number of messages to be produced for termination: "); // Ask user for program timeout duration
+        scanf("%d", &producedMessagesForTermination);
+        timeoutDuration = 0;
+        alarm(timeoutDuration);
+    default:
+        timeoutDuration = 0;
+        alarm(timeoutDuration);
+        break;
     }
     
     // Timeout before starting the actual execution
@@ -288,7 +301,7 @@ int main(int argc, char *argv[]) {
     alarm(timeoutDuration); // Schedule alarm to send SIGALRM after user specified timeout
 
     // Waiting with while loop for termination
-    while (!terminate) {
+    while (!atomic_load(&terminate)) {
         sleep(1); // Sleep for 1 second before checking the terminate flag
     }
 
@@ -315,6 +328,10 @@ void *producer(void *arg) {
                 put_item(item); // Add one item to the buffer
                 sem_post(&full); // Signal that an item was added
             }
+            
+            if(producedMessagesForTermination != 0 && prodIdx >= producedMessagesForTermination) // Terminate program if number of messages to be consumed has been reached
+                atomic_store(&terminate, true);
+            
             pthread_mutex_unlock(&mutex); // Exit critical section
         }
         
@@ -334,8 +351,10 @@ void *consumer(void *arg) {
         Message item = get_item(); // Retrieve one item from the buffer
         consume_item(item); // Consume the retrieved item
         sem_post(&empty); // Increments the empty semaphore
-        if(messagesForTermination != 0 && consIdx >= messagesForTermination) // Terminate program if number of messages to be consumed has been reached
-            terminate = 1;
+        
+        if(consumedMessagesForTermination != 0 && consIdx >= consumedMessagesForTermination) // Terminate program if number of messages to be consumed has been reached
+            atomic_store(&terminate, true);
+        
         pthread_mutex_unlock(&mutex); // Exit critical section
         sleep(atomic_load(&consumerSleepTime)); // Sleep for consumerSleepTime after consuming an item
     }
@@ -489,7 +508,7 @@ void clean_resources() {
 // Signal handler to update terminate flag and terminate safely
 void signal_handler(int signum) {
     // TODO Safe termination for signals like SIGINT (CTRL+C)
-    terminate = 1;
+    atomic_store(&terminate, true);
 }
 
 // Print the current state of the buffer
@@ -513,7 +532,7 @@ void printOccupationAtTime() {
 
 // Ticker thread that runs every second to increment the tick count
 void* ticker_thread(void* arg) {
-    while (terminate == 0) {
+    while (!atomic_load(&terminate)) {
         pthread_mutex_lock(&tickMutex);
         tickCount++; // Increment the tick count variable
         pthread_mutex_unlock(&tickMutex);
@@ -548,7 +567,7 @@ void *userInputListener(void *arg) {
         {
         case 0: // q
             pthread_mutex_lock(&tickMutex); // by taking the lock mutex we assure ticker_thread is sleeping
-            terminate = 1;
+            atomic_store(&terminate, true);
             pthread_mutex_unlock(&tickMutex);
             
             break;
