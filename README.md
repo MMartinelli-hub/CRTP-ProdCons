@@ -52,10 +52,9 @@ The input parameters need to respect the following properties:
     -pr <producer rate (int)>: must be an integer
 
 It's important to notice some aspects:
-    
-    1. To have more freedom in the simulations, no actual validation is performed on the input parameters, so it is up to the user to respect what is defined above;
-    2. If only the upper threshold is specified, the lower threshold is set as (upperThreshold - 0.1). 
-    If that behavior is not wanted, the user should explicitly define also the lower threshold.
-    3. For the program's correct behavior, an upper threshold in buffer utilization has been fixed as 0.9.
-    If that's behavior is not wanted, it's sufficient to change the value associated with "#define HARD_UPPER_THRESHOLD" in the code.
+1. To have more freedom in the simulations, no actual validation is performed on the input parameters, so it is up to the user to respect what is defined above;
+2. If only the upper threshold is specified, the lower threshold is set as (upperThreshold - 0.1). 
+If that behavior is not wanted, the user should explicitly define also the lower threshold.
+3. For the program's correct behavior, an upper threshold in buffer utilization has been fixed as 0.9.
+If that behavior is not wanted, it's sufficient to change the value associated with "#define HARD_UPPER_THRESHOLD" in the code.
 ---
