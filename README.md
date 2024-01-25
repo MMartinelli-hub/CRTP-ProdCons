@@ -55,6 +55,6 @@ It's important to notice some aspects:
 1. To have more freedom in the simulations, no actual validation is performed on the input parameters, so it is up to the user to respect what is defined above;
 2. If only the upper threshold is specified, the lower threshold is set as (upperThreshold - 0.1). 
 If that behavior is not wanted, the user should explicitly define also the lower threshold.
-3. For the program's correct behavior, an upper threshold in buffer utilization has been fixed as 0.9.
-If that behavior is not wanted, it's sufficient to change the value associated with "#define HARD_UPPER_THRESHOLD" in the code.
+3. For the program's correct behavior, the upper threshold in buffer utilization should be directly proportional to the buffer size, namely the higher the size the nearest we can place the upper threshold to 1.
+However, the recommended interval is [0.7,0.9)
 ---
