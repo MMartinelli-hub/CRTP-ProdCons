@@ -10,8 +10,8 @@
 #include <stdatomic.h>
 
 // Default configuration constants
-#define DEFAULT_BUFFER_SIZE 20
-#define DEFAULT_LOWER_THRESHOLD 0.65
+#define DEFAULT_BUFFER_SIZE 25
+#define DEFAULT_LOWER_THRESHOLD 0.70
 #define DEFAULT_UPPER_THRESHOLD 0.75
 #define DEFAULT_SLEEP_TIME 1
 #define DEFAULT_ACTOR_SLEEP_TIME 3
