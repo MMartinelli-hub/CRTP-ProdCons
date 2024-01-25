@@ -1,0 +1,40 @@
+## TERMINATION ON 60 SECONDS
+----------------------------------------------------------
+Program ran for 60 seconds.
+Number of produced items: 66
+Number of consumed items: 57
+Average delay among the consumed items: 9.965
+Min delay among the consumed items: 0.0
+Max delay among the consumed items: 20.0
+Number of items left in the queue: 9 - Percentage: 13.6% 
+Producer ratio over time (seconds): 1.10
+Consumer ratio over time (seconds): 0.95
+----------------------------------------------------------
+
+
+## TERMINATION ON 100 PACKETS PRODUCED
+----------------------------------------------------------
+Program ran for 94 seconds.
+Number of produced items: 103
+Number of consumed items: 92
+Average delay among the consumed items: 10.533
+Min delay among the consumed items: 0.0
+Max delay among the consumed items: 20.0
+Number of items left in the queue: 11 - Percentage: 10.7% 
+Producer ratio over time (seconds): 1.10
+Consumer ratio over time (seconds): 0.98
+----------------------------------------------------------
+
+
+## TERMINATION ON 100 PACKETS CONSUMED
+----------------------------------------------------------
+Program ran for 103 seconds.
+Number of produced items: 111
+Number of consumed items: 100
+Average delay among the consumed items: 10.610
+Min delay among the consumed items: 0.0
+Max delay among the consumed items: 20.0
+Number of items left in the queue: 11 - Percentage: 9.9% 
+Producer ratio over time (seconds): 1.08
+Consumer ratio over time (seconds): 0.97
+----------------------------------------------------------

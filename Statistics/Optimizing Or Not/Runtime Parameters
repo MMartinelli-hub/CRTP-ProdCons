@@ -1,0 +1,10 @@
+----------------------------------------------------------
+RUNTIME PARAMETERS:
+  bufferSize          20 with adj - 0.8*20=16 w/o
+  lowerThreshold      0.60 	[default]
+  upperThreshold      0.80 
+  prodSleepTime       2 	[default]
+  consSleepTime       1 	[default]
+  actorSleepTime      3 	[default]
+  producerRate        1 	[default]
+---------------------------------------------------------- 

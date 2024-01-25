@@ -1,0 +1,47 @@
+Statistics Messages Produced
+----------------------------------------------------------
+RUNTIME PARAMETERS:
+  bufferSize          10 - 20 - 50 - 100 - 200
+  lowerThreshold      0.60 	[default]
+  upperThreshold      0.80 
+  prodSleepTime       1 	[default]
+  consSleepTime       1 	[default]
+  actorSleepTime      3 	[default]
+  producerRate        1 	[default]
+---------------------------------------------------------- 
+
+## 20 PRODUCED MESSAGES
+- BS 10:    14      - MaxDelay: - AvgDelay:
+- BS 20:    13      - MaxDelay: - AvgDelay:
+- BS 50:    12      - MaxDelay: - AvgDelay:
+- BS 100:   12      - MaxDelay: - AvgDelay:
+- BS 200:   12      - MaxDelay: - AvgDelay:
+
+## 50 PRODUCED MESSAGES
+- BS 10:    47      - MaxDelay: - AvgDelay:
+- BS 20:    39      - MaxDelay: - AvgDelay:
+- BS 50:    19      - MaxDelay: - AvgDelay: 
+- BS 100:   18      - MaxDelay: - AvgDelay:
+- BS 200:   18      - MaxDelay: - AvgDelay:
+
+## 100 PRODUCED MESSAGES
+- BS 10:    96      - MaxDelay: - AvgDelay:
+- BS 20:    93      - MaxDelay: - AvgDelay:
+- BS 50:    75      - MaxDelay: - AvgDelay:
+- BS 100:   27      - MaxDelay: - AvgDelay:
+- BS 200:   26      - MaxDelay: - AvgDelay:
+
+## 200 PRODUCED MESSAGES
+- BS 10:            - MaxDelay: - AvgDelay:
+- BS 20:            - MaxDelay: - AvgDelay:
+- BS 50:    168        - MaxDelay: 48 - AvgDelay: 28.3
+- BS 100:   124     - MaxDelay: 94 - AvgDelay: 44
+- BS 200:   36      - MaxDelay: 21 - AvgDelay: 8.9
+
+## 500 PRODUCED MESSAGES
+- BS 10:
+- BS 20:
+- BS 50:
+- BS 100:
+- BS 200:
+

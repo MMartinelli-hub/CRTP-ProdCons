@@ -1,0 +1,72 @@
+## BUFFER SIZE 10
+----------------------------------------------------------
+Program ran for 197 seconds.
+Number of produced items: 200
+Number of consumed items: 193
+Average delay among the consumed items: 5.751
+Min delay among the consumed items: 0.0
+Max delay among the consumed items: 9.0
+Number of items left in the queue: 7
+Number of items left in the queue: 7 - Percentage: 3.5% 
+Producer ratio over time (seconds): 1.02
+Consumer ratio over time (seconds): 0.98
+----------------------------------------------------------
+
+## BUFFER SIZE 20
+----------------------------------------------------------
+Program ran for 189 seconds.
+Number of produced items: 201
+Number of consumed items: 186
+Average delay among the consumed items: 11.027
+Min delay among the consumed items: 0.0
+Max delay among the consumed items: 20.0
+Number of items left in the queue: 15
+Number of items left in the queue: 15 - Percentage: 7.5% 
+Producer ratio over time (seconds): 1.06
+Consumer ratio over time (seconds): 0.98
+----------------------------------------------------------
+
+
+## BUFFER SIZE 50
+----------------------------------------------------------
+Program ran for 168 seconds.
+Number of produced items: 201
+Number of consumed items: 165
+Average delay among the consumed items: 28.103
+Min delay among the consumed items: 0.0
+Max delay among the consumed items: 48.0
+Number of items left in the queue: 36
+Number of items left in the queue: 36 - Percentage: 17.9% 
+Producer ratio over time (seconds): 1.20
+Consumer ratio over time (seconds): 0.98
+----------------------------------------------------------
+
+
+## BUFFER SIZE 100
+----------------------------------------------------------
+Program ran for 125 seconds.
+Number of produced items: 201
+Number of consumed items: 123
+Average delay among the consumed items: 44.659
+Min delay among the consumed items: 0.0
+Max delay among the consumed items: 95.0
+Number of items left in the queue: 78
+Number of items left in the queue: 78 - Percentage: 38.8% 
+Producer ratio over time (seconds): 1.61
+Consumer ratio over time (seconds): 0.98
+----------------------------------------------------------
+
+
+## BUFFER SIZE 200
+----------------------------------------------------------
+Program ran for 37 seconds.
+Number of produced items: 210
+Number of consumed items: 35
+Average delay among the consumed items: 9.286
+Min delay among the consumed items: 0.0
+Max delay among the consumed items: 22.0
+Number of items left in the queue: 175
+Number of items left in the queue: 175 - Percentage: 83.3% 
+Producer ratio over time (seconds): 5.68
+Consumer ratio over time (seconds): 0.95
+----------------------------------------------------------
