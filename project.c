@@ -11,8 +11,8 @@
 
 // Default configuration constants
 #define DEFAULT_BUFFER_SIZE 20
-#define DEFAULT_LOWER_THRESHOLD 0.6
-#define DEFAULT_UPPER_THRESHOLD 0.7
+#define DEFAULT_LOWER_THRESHOLD 0.65
+#define DEFAULT_UPPER_THRESHOLD 0.75
 #define DEFAULT_SLEEP_TIME 1
 #define DEFAULT_ACTOR_SLEEP_TIME 3
 #define DEFAULT_PRODUCER_RATE 1
@@ -32,11 +32,11 @@ int producerRate; // Number of messages the producer try to add in a single iter
 int in = 0, out = 0, count = 0; // Indexes for the circular buffer 
 
 // Utility global variables
-int prodIdx = 0; // Counter for the total number of produced items
-int consIdx = 0; // Counter for the total number of consumed items 
-double totDelay = 0; // Sum of the delays of the consumed items
-double minDelay = 0; // Min delay among the consumed items
-double maxDelay = 0; // Max delay among the consumed items
+int prodIdx = 0; // Counter for the total number of produced messages
+int consIdx = 0; // Counter for the total number of consumed messages 
+double totDelay = 0; // Sum of the delays of the consumed messages
+double minDelay = 0; // Min delay among the consumed messages
+double maxDelay = 0; // Max delay among the consumed messages
 int consumedMessagesForTermination = 0; // Number of messages to be consumed before terminating (optional) 
 int producedMessagesForTermination = 0; // Number of messages to be produced before terminating (optional)
 volatile int tickCount = 0; // Tick count variable
@@ -62,20 +62,19 @@ pthread_t inputThread; // Thread for managing user input during runtime
 void *producer(void *arg); // Producer function
 void *consumer(void *arg); // Consumer function
 void *actor(void *arg); // Actor function
-int produce_item(); // Generate an item 
-void put_item(int item); // Insert an item in the buffer 
-Message get_item(); // Remove an item from the buffer
-void consume_item(Message item); // Consume (print) the item passed as argument
+int produce_message(); // Generate a message 
+void put_message(int message); // Insert a message in the buffer 
+Message get_message(); // Remove a message from the buffer
+void consume_message(Message m); // Consume (print) the message passed as argument
 void adjust_production_rate(double queueUsage); // Adjust the production rate
 void clean_resources(); // Clean up resources to terminate safely
-void signal_handler(int signum); // Signal handler (for termination message upon specified timeout)
+void signal_handler(int signum); // Signal handler for termination message upon specified timeout
 
 // Utility function prototypes
 void printQueue(); // Print the queue content
 void printOccupationAtTime(); // Print the queue occupation and production rate 
-void* userInputListener(void *arg); // Function to remain in listen to user inputs
 void* ticker_thread(void* arg); // Ticker thread to count the runtime duration 
-void print_usage_guide(const char *programName); // Print how to use the program from command line
+void* userInputListener(void *arg); // Function to remain in listen to user inputs
 
 // Print how to launch the program from command line
 void print_usage_guide(const char *programName) {
@@ -93,7 +92,7 @@ void print_usage_guide(const char *programName) {
     printf("\t%s -bs 50 -lt 0.3 -ut 0.7 -pst 2 -cst 1 -ast 2 -pr 3\n", programName);
 }
 
-// Print the parameters 
+// Print the runtime parameters 
 void print_parameters() {
     printf("\n----------------------------------------------------------\n");
     printf("RUNTIME PARAMETERS:\n");
@@ -234,8 +233,6 @@ int main(int argc, char *argv[]) {
     } else {
         for (int i = 0; i < bufferSize; i++) {
             bzero(&buffer[i], sizeof(Message));
-            //buffer[i].item = 0; // Initialize the buffer to empty
-            //buffer[i].timestamp = time(NULL);
         }
         printf("Buffer of size %d allocated and initialized to empty\n", bufferSize);
     }
@@ -320,24 +317,25 @@ void *producer(void *arg) {
         pthread_mutex_unlock(&producerRateMutex);
 
         for (int i = 0; i < localRate; i++) {
-            int item = ++prodIdx;
-            sem_wait(&empty);
+            // Set the item content for the next message, the timestamp is set by the put function
+            int item = ++prodIdx; 
+            sem_wait(&empty); // Decrements the empty semaphore
 
             // Critical Section
             pthread_mutex_lock(&mutex); // Enter critical section
             // Check to ensure the buffer isn't full before adding
             if (count < bufferSize) {
-                put_item(item); // Add one item to the buffer
-                sem_post(&full); // Signal that an item was added
+                put_message(item); // Add one message to the buffer
+                sem_post(&full); // Signal that a message was added
             }
-            
-            if(producedMessagesForTermination != 0 && prodIdx >= producedMessagesForTermination) // Terminate program if number of messages to be consumed has been reached
+            // Terminate program if number of messages to be consumed has been defined and reached
+            if(producedMessagesForTermination != 0 && prodIdx >= producedMessagesForTermination) 
                 atomic_store(&terminate, true);
             
             pthread_mutex_unlock(&mutex); // Exit critical section
         }
-        
-        sleep(atomic_load(&producerSleepTime)); // Sleep for producerSleepTime after attempting to produce `localRate` items
+        // Sleep for producerSleepTime after attempting to produce `localRate` messages
+        sleep(atomic_load(&producerSleepTime)); 
     }
     return NULL;
 }
@@ -350,11 +348,12 @@ void *consumer(void *arg) {
         
         // Critical Section
         pthread_mutex_lock(&mutex); // Enter critical section 
-        Message item = get_item(); // Retrieve one item from the buffer
-        consume_item(item); // Consume the retrieved item
+        Message m = get_message(); // Retrieve one message from the buffer
+        consume_message(m); // Consume the retrieved message
         sem_post(&empty); // Increments the empty semaphore
-        
-        if(consumedMessagesForTermination != 0 && consIdx >= consumedMessagesForTermination) // Terminate program if number of messages to be consumed has been reached
+
+        // Terminate program if number of messages to be consumed has been defined and reached
+        if(consumedMessagesForTermination != 0 && consIdx >= consumedMessagesForTermination) 
             atomic_store(&terminate, true);
         
         pthread_mutex_unlock(&mutex); // Exit critical section
@@ -382,48 +381,47 @@ void *actor(void *arg) {
     return NULL;
 }
 
-// Produce an item
-int produce_item() {
+// Produce a message
+int produce_message() {
     return (rand() % (100 - 10)) + 10; // Generate a random item between [10, 99]
 }
 
-// Put an item in the buffer
-void put_item(int item) { 
+// Put a message with the content passed as argument in the buffer
+void put_message(int item) { 
     buffer[in].item = item;
     buffer[in].timestamp = time(NULL);
     in = (in + 1) % bufferSize;
     count++;
     if(debug) {
         printf("Produced: %d", item);
-        printQueue(); // Call to visualize the queue after produced an item
+        printQueue(); // Call to visualize the queue after produced a message
     }
     else {
         printOccupationAtTime();
     }
 }
 
-// Take an item from the buffer
-Message get_item() { 
-    Message item = buffer[out];
-    bzero(&buffer[out], sizeof(Message));
-    //buffer[out].item = 0; // Indicate that the position is now empty
+// Take a message from the buffer
+Message get_message() { 
+    Message m = buffer[out];
+    bzero(&buffer[out], sizeof(Message)); // Free the position
     out = (out + 1) % bufferSize;
     count--;
     consIdx++;
-    return item;
+    return m;
 }
 
-// Do something with the consumed item
-void consume_item(Message item) { 
-        double delay = difftime(time(NULL), item.timestamp); // Compute the delay for the current message
+// Do something with the consumed message
+void consume_message(Message m) { 
+        double delay = difftime(time(NULL), m.timestamp); // Compute the delay for the current message
         totDelay += delay; // Update the total delay
         if(delay < minDelay) // Check if minDelay needs to be updated
             minDelay = delay;
         if(delay > maxDelay) // Check if maxDelay needs to be updated
             maxDelay = delay;
     if(debug) {
-        printf("Consumed: %d", item.item);
-        printQueue(); // Call to visualize the queue after consuming an item
+        printf("Consumed: %d", m.item);
+        printQueue(); // Call to visualize the queue after consuming a message
     } else {
         printOccupationAtTime();
     }
@@ -486,14 +484,14 @@ void clean_resources() {
     pthread_mutex_lock(&tickMutex);
     printf("Program ran for %d seconds.\n", tickCount);
     pthread_mutex_unlock(&tickMutex);
-    printf("Number of produced items: %d\n", prodIdx);
-    printf("Number of consumed items: %d\n", consIdx);
-    printf("Average delay among the consumed items: %.3f\n", totDelay/consIdx);
-    printf("Min delay among the consumed items: %.1f\n", minDelay);
-    printf("Max delay among the consumed items: %.1f\n", maxDelay);
+    printf("Number of produced messages: %d\n", prodIdx);
+    printf("Number of consumed messages: %d\n", consIdx);
+    printf("Average delay among the consumed messages: %.3f\n", totDelay/consIdx);
+    printf("Min delay among the consumed messages: %.1f\n", minDelay);
+    printf("Max delay among the consumed messages: %.1f\n", maxDelay);
     int lostItems = prodIdx-consIdx;
     double percLostItems = ((double)lostItems / prodIdx)*100;
-    printf("Number of items left in the queue: %d - Percentage: %.1f%% \n", lostItems, percLostItems);
+    printf("Number of messages left in the queue: %d - Percentage: %.1f%% \n", lostItems, percLostItems);
     double prodRatio = (double)prodIdx / tickCount;
     double consRatio = (double)consIdx / tickCount;
     printf("Producer ratio over time (seconds): %.2f\n", prodRatio);
@@ -501,7 +499,7 @@ void clean_resources() {
     printf("----------------------------------------------------------\n\n");
 
     // Cancel the ticker thread
-    pthread_cancel(tickThread); // Here we don't need to check since it arises error and return on failed init
+    pthread_cancel(tickThread); // Here we don't need to check since it arises error and return if the init fails
     pthread_join(tickThread, NULL);   
 }
 
@@ -511,7 +509,7 @@ void signal_handler(int signum) {
     atomic_store(&terminate, true);
 }
 
-// Print the current state of the buffer
+// Print the current state of the buffer (in 'debug' mode)
 void printQueue() {
     printf("\t|");
     for (int i = 0; i < bufferSize; i++) {
@@ -525,7 +523,7 @@ void printQueue() {
 }
 
 int timeIdx = 1;
-// Print the queue occupation and producer rate
+// Print the queue occupation and producer rate (in 'not-debug' mode)
 void printOccupationAtTime() {
     printf("%d: %.2f %d\n", timeIdx++, (double)count / bufferSize, producerRate);
 }
@@ -541,7 +539,7 @@ void* ticker_thread(void* arg) {
     return NULL;
 }
 
-// Input listener to terminate on user input 'q' and adjust runtime parameters dynamically
+// Input listener to terminate on user input 'q' and adjust runtime parameters during execution
 void *userInputListener(void *arg) {
     sleep(5);
     const char *commands[] = {"q", "-bs", "-lt", "-ut", "-pst", "-cst", "-ast", "-pr"};
@@ -571,25 +569,17 @@ void *userInputListener(void *arg) {
             pthread_mutex_unlock(&tickMutex);
             
             break;
-        case 1: // -bs
+        case 1: // -bs ! Resize buffer size still not supported, this case can be used for printing runtime parameters during runtime !
             pthread_mutex_lock(&mutex);
             pthread_mutex_lock(&producerRateMutex);
-            printf("Enter buffer size: ");
+            printf("Enter integer value: ");
             fgets(input, sizeof(input), stdin);
-            int newBufferSize;
-            if (sscanf(input, "%d", &newBufferSize) == 1 && newBufferSize >= bufferSize) {
-                /*if(resizeBuffer(newBufferSize)) {
-                    printf("Buffer size set to: %d\n", bufferSize);
-                    printQueue();
-                }*/
-                printf("Buffer size value read: %d\n", newBufferSize);
-                print_parameters();
-            } else {
-                printf("Invalid buffer size. It remains unchanged.\n");
-            }
+            int inputInt;
+            if (sscanf(input, "%d", &inputInt) == 1) 
+                printf("Input value: %d\n", inputInt);
+            print_parameters();
             pthread_mutex_unlock(&producerRateMutex);
             pthread_mutex_unlock(&mutex);
-            
             break;
         case 2:  // -lt
             pthread_mutex_lock(&mutex);
@@ -714,43 +704,44 @@ void *userInputListener(void *arg) {
 }
 
 int resizeBuffer(int newSize) {
+    // Check if the new size is greater than the current size
+    if(newSize < bufferSize) {
+        printf("The new buffer size must be greater than the current size\n");
+        return 1;
+    } else if(newSize == bufferSize) {
+        printf("Buffer size already set at %d\n", bufferSize);
+        return 1;
+    }
+
     // Allocate a new buffer with the specified size
     Message *newBuffer = malloc(newSize * sizeof(Message));
     if(newBuffer == NULL) {
         // Handle allocation failure
-        fprintf(stderr, "Failed to allocate memory for the new buffer");
+        printf("Failed to allocate memory for the new buffer");
         return 1;   
     }
 
     // Copy the elements from the old buffer to the new buffer
-    int inIdx = in; 
-    int outIdx = out;
-    time_t oldest = time(NULL);
-    for(int i = 0; i < bufferSize; i++) {
-        if(buffer[i].item != 0)
-            inIdx = copy_item(newBuffer, newSize, inIdx, buffer[i]);
-            if(difftime(oldest, buffer[i].timestamp) > 0) {
-                oldest = buffer[i].timestamp;
-                outIdx = i;
-            } 
-    }
+    int i = 0;
+    while(count > 0) {
+        newBuffer[in] = buffer[out];
 
-    // Update the circular buffer indexes
-    in = inIdx;
-    out = outIdx;
+        // Update indexes
+        in = (in + 1) % newSize;
+        out = (out + 1) % bufferSize;
+
+        count--;
+        i++;
+    }
 
     // Free the memory occupied by the old buffer
     free(buffer);
 
-    // Update the global buffer pointer to point to the new buffer and adjust its size
+    // Update the global buffer pointer to point to the new buffer and adjust its size and indexes
     buffer = newBuffer;
     bufferSize = newSize;
+    in = i;
+    count = i;
+    out = 0;
     return 0;
-}
-
-int copy_item(Message *newBuffer, int newBufferSize, int inIdx, Message m) { 
-    newBuffer[inIdx].item = m.item;
-    newBuffer[inIdx].timestamp = m.timestamp;
-    inIdx = (inIdx + 1) % newBufferSize;
-    return inIdx;
 }
