@@ -24,8 +24,8 @@ typedef struct {
 } Message;
 
 // Global variables
-Message *buffer;
-int bufferSize;
+Message *buffer; // Circular shared buffer
+int bufferSize; // Size of the shared buffer
 double lowerThreshold, upperThreshold; // Thresholds for the buffer usage
 atomic_int producerSleepTime, consumerSleepTime, actorSleepTime; // Sleep time for the producer, consumer, and actor
 int producerRate; // Number of messages the producer try to add in a single iteration before going to sleep
