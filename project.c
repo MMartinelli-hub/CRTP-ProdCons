@@ -323,11 +323,8 @@ void *producer(void *arg) {
 
             // Critical Section
             pthread_mutex_lock(&mutex); // Enter critical section
-            // Check to ensure the buffer isn't full before adding
-            if (count < bufferSize) {
-                put_message(item); // Add one message to the buffer
-                sem_post(&full); // Signal that a message was added
-            }
+            put_message(item); // Add one message to the buffer
+            sem_post(&full); // Signal that a message was added
             // Terminate program if number of messages to be consumed has been defined and reached
             if(producedMessagesForTermination != 0 && prodIdx >= producedMessagesForTermination) 
                 atomic_store(&terminate, true);
