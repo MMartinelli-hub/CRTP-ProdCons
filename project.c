@@ -700,6 +700,7 @@ void *userInputListener(void *arg) {
     return NULL;
 }
 
+// It works but if we want to implement it we need also to adjust semaphores
 int resizeBuffer(int newSize) {
     // Check if the new size is greater than the current size
     if(newSize < bufferSize) {
