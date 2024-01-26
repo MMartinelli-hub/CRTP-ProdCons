@@ -569,12 +569,12 @@ void *userInputListener(void *arg) {
         case 1: // -bs ! Resize buffer size still not supported, this case can be used for printing runtime parameters during runtime !
             pthread_mutex_lock(&mutex);
             pthread_mutex_lock(&producerRateMutex);
+            print_parameters();
             printf("Enter integer value: ");
             fgets(input, sizeof(input), stdin);
             int inputInt;
             if (sscanf(input, "%d", &inputInt) == 1) 
                 printf("Input value: %d\n", inputInt);
-            print_parameters();
             pthread_mutex_unlock(&producerRateMutex);
             pthread_mutex_unlock(&mutex);
             break;
