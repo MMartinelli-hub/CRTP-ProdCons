@@ -574,7 +574,7 @@ void *userInputListener(void *arg) {
             fgets(input, sizeof(input), stdin);
             int inputInt;
             if (sscanf(input, "%d", &inputInt) == 1) 
-                printf("Input value: %d\n", inputInt);
+                printf("Input value: %d\n\n", inputInt);
             pthread_mutex_unlock(&producerRateMutex);
             pthread_mutex_unlock(&mutex);
             break;
@@ -587,14 +587,14 @@ void *userInputListener(void *arg) {
             if (sscanf(input, "%lf", &newLowerThreshold) == 1) {
                 if(newLowerThreshold > 0 && newLowerThreshold <= 1) {
                     lowerThreshold = newLowerThreshold;
-                    printf("Lower threshold set to: %.2f\n", lowerThreshold);
+                    printf("Lower threshold set to: %.2f\n\n", lowerThreshold);
                     print_parameters();
                 }
                 else {
-                    printf("Invalid lower threshold. It remains unchanged.\n");    
+                    printf("Invalid lower threshold. It remains unchanged.\n\n");    
                 }
             } else {
-                printf("Invalid lower threshold. It remains unchanged.\n");
+                printf("Invalid lower threshold. It remains unchanged.\n\n");
             }
             pthread_mutex_unlock(&producerRateMutex);
             pthread_mutex_unlock(&mutex);
@@ -609,14 +609,14 @@ void *userInputListener(void *arg) {
             if (sscanf(input, "%lf", &newUpperThreshold) == 1) {
                 if(newUpperThreshold > 0 && newUpperThreshold <= 1) {
                     upperThreshold = newUpperThreshold;
-                    printf("Upper threshold set to: %.2f\n", upperThreshold);
+                    printf("Upper threshold set to: %.2f\n\n", upperThreshold);
                     print_parameters();
                 }
                 else {
-                    printf("Invalid upper threshold. It remains unchanged.\n");    
+                    printf("Invalid upper threshold. It remains unchanged.\n\n");    
                 }
             } else {
-                printf("Invalid upper threshold. It remains unchanged.\n");
+                printf("Invalid upper threshold. It remains unchanged.\n\n");
             }
             pthread_mutex_unlock(&producerRateMutex);
             pthread_mutex_unlock(&mutex);
@@ -630,10 +630,10 @@ void *userInputListener(void *arg) {
             int newProducerSleepTime;
             if (sscanf(input, "%d", &newProducerSleepTime) == 1) {
                 atomic_store(&producerSleepTime, newProducerSleepTime);
-                printf("Producer sleep time set to: %d\n", producerSleepTime);
+                printf("Producer sleep time set to: %d\n\n", producerSleepTime);
                 print_parameters();
             }  else {
-                printf("Invalid upper threshold. It remains unchanged.\n");
+                printf("Invalid upper threshold. It remains unchanged.\n\n");
             }
             pthread_mutex_unlock(&producerRateMutex);
             pthread_mutex_unlock(&mutex);
@@ -650,7 +650,7 @@ void *userInputListener(void *arg) {
                 printf("Consumer sleep time set to: %d\n", consumerSleepTime);
                 print_parameters();
             }  else {
-                printf("Invalid upper threshold. It remains unchanged.\n");
+                printf("Invalid upper threshold. It remains unchanged.\n\n");
             }
             pthread_mutex_unlock(&producerRateMutex);
             pthread_mutex_unlock(&mutex);
@@ -667,7 +667,7 @@ void *userInputListener(void *arg) {
                 printf("Actor sleep time set to: %d\n", actorSleepTime);
                 print_parameters();
             }  else {
-                printf("Invalid upper threshold. It remains unchanged.\n");
+                printf("Invalid upper threshold. It remains unchanged.\n\n");
             }
             pthread_mutex_unlock(&producerRateMutex);
             pthread_mutex_unlock(&mutex);
@@ -684,7 +684,7 @@ void *userInputListener(void *arg) {
                 printf("Producer rate set to: %d\n", producerRate);
                 print_parameters();
             } else {
-                printf("Invalid producer rate. It remains unchanged.\n");
+                printf("Invalid producer rate. It remains unchanged.\n\n");
             }
             pthread_mutex_unlock(&producerRateMutex);
             pthread_mutex_unlock(&mutex);
@@ -692,7 +692,7 @@ void *userInputListener(void *arg) {
             break;
         default:
             if(strlen(input) >= 1)
-                printf("Invalid input: %s\n", input);
+                printf("Invalid input: %s\n\n", input);
             
             break;
         }
