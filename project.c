@@ -519,10 +519,10 @@ void printQueue() {
     printf("\n");
 }
 
-int timeIdx = 1;
+int printIdx = 1;
 // Print the queue occupation and producer rate (in 'not-debug' mode)
 void printOccupationAtTime() {
-    printf("%d: %.2f %d\n", timeIdx++, (double)count / bufferSize, producerRate);
+    printf("%d: %.2f %d\n", printIdx++, (double)count / bufferSize, producerRate);
 }
 
 // Ticker thread that runs every second to increment the tick count
